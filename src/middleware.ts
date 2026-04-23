@@ -25,4 +25,40 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const publicRoutes = ['/auth/login', '/auth/cliente-login']
-  if (publ
+  if (publicRoutes.includes(pathname)) {
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      if (profile?.role === 'cliente') {
+        return NextResponse.redirect(new URL('/cliente/calendario', request.url))
+      }
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+    return supabaseResponse
+  }
+
+  if (!user) {
+    const loginUrl = pathname.startsWith('/cliente') ? '/auth/cliente-login' : '/auth/login'
+    return NextResponse.redirect(new URL(loginUrl, request.url))
+  }
+
+  if (pathname.startsWith('/dashboard')) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    if (profile?.role === 'cliente') {
+      return NextResponse.redirect(new URL('/cliente/calendario', request.url))
+    }
+  }
+
+  return supabaseResponse
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+}
