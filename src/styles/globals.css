@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --vinho: #6B0F2A;
+  --vinho-dark: #4A0A1E;
+  --vinho-light: #8B1535;
+  --rosa: #C2185B;
+  --rosa-light: #E91E8C;
+  --rosa-pale: #FCE4EC;
+  --offwhite: #FAF7F5;
+  --creme: #F0EBEA;
+  --preto: #1A1A1A;
+  --cinza: #888888;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: var(--offwhite);
+  color: var(--preto);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--creme);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--vinho);
+  border-radius: 3px;
+  opacity: 0.6;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--rosa);
+}
+
+/* Seleção de texto */
+::selection {
+  background: var(--rosa-pale);
+  color: var(--vinho);
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-vinho text-white px-4 py-2 rounded-xl font-medium text-sm hover:bg-vinho-light transition-all duration-200 shadow-card hover:shadow-card-hover active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-vinho border border-vinho/20 px-4 py-2 rounded-xl font-medium text-sm hover:bg-rosa-pale transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply text-gray-600 px-4 py-2 rounded-xl font-medium text-sm hover:bg-creme transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white px-4 py-2 rounded-xl font-medium text-sm hover:bg-red-700 transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-card p-5 border border-gray-100;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-card-hover transition-all duration-200 cursor-pointer;
+  }
+
+  .input {
+    @apply w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-vinho/30 focus:border-vinho transition-all duration-200 bg-white;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-gray-600 mb-1;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .page-title {
+    @apply font-display text-2xl font-semibold text-vinho;
+  }
+
+  .section-title {
+    @apply font-display text-lg font-semibold text-gray-800;
+  }
+}
