@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Cliente, CORES_CLIENTES } from '@/lib/utils'
+import { type Cliente } from '@/types'
+import { CORES_CLIENTES } from '@/lib/utils'
 import { formatCurrency, getInitials, cn } from '@/lib/utils'
 import { Plus, Search, Users, MoreVertical, Instagram, Phone, Mail, X } from 'lucide-react'
 
