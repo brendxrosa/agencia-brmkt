@@ -44,8 +44,8 @@ export default function ClienteSuportePage() {
     f.resposta.toLowerCase().includes(busca.toLowerCase())
   )
 
-  const categorias = [...new Set(faqs.map(f => f.categoria))]
-
+const categorias = faqs.map(f => f.categoria).filter((v, i, a) => a.indexOf(v) === i)
+  
   async function enviarDuvida() {
     if (!duvida.trim() || !clienteId) return
     setEnviando(true)
