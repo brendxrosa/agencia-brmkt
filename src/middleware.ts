@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() { return request.cookies.getAll() },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -26,34 +26,12 @@ export async function middleware(request: NextRequest) {
 
   const publicRoutes = ['/auth/login', '/auth/cliente-login']
   if (publicRoutes.includes(pathname)) {
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-      if (profile?.role === 'cliente') {
-        return NextResponse.redirect(new URL('/cliente/calendario', request.url))
-      }
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
+    if (user) return NextResponse.redirect(new URL('/dashboard', request.url))
     return supabaseResponse
   }
 
   if (!user) {
-    const loginUrl = pathname.startsWith('/cliente') ? '/auth/cliente-login' : '/auth/login'
-    return NextResponse.redirect(new URL(loginUrl, request.url))
-  }
-
-  if (pathname.startsWith('/dashboard')) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    if (profile?.role === 'cliente') {
-      return NextResponse.redirect(new URL('/cliente/calendario', request.url))
-    }
+    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
   return supabaseResponse
