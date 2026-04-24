@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, Calendar, Kanban, CalendarDays,
   CheckSquare, TrendingUp, DollarSign, BarChart2, FileText,
-  BookOpen, UserCheck, LogOut, ChevronLeft, ChevronRight
+  BookOpen, UserCheck, LogOut, ChevronLeft, ChevronRight, Shield
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -24,6 +24,7 @@ const navItems = [
   { href: '/dashboard/docs', label: 'Docs', icon: BookOpen },
   { href: '/dashboard/relatorios', label: 'Relatórios', icon: FileText },
   { href: '/dashboard/onboarding', label: 'Onboarding', icon: UserCheck },
+  { href: '/dashboard/equipe', label: 'Equipe', icon: Shield },
 ]
 
 export default function Sidebar() {
