@@ -52,8 +52,7 @@ export default function EquipePage() {
 
   async function carregar() {
     const [{ data: p }, { data: c }] = await Promise.all([
-      supabase.from('profiles').select('*, equipe(cargo, modulos_acesso, ativo)').neq('role', 'cliente'),
-      supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome')
+supabase.from('profiles').select('id, nome, email, role, equipe(cargo, modulos_acesso, ativo)').in('role', ['admin', 'equipe']),      supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome')
     ])
     setMembros(p || [])
     setClientes(c || [])
