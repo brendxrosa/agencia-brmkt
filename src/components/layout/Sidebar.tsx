@@ -18,7 +18,7 @@ const navItems = [
   { href: '/dashboard/calendario', label: 'Calendário', icon: Calendar },
   { href: '/dashboard/agenda', label: 'Agenda', icon: CalendarDays },
   { href: '/dashboard/tarefas', label: 'Tarefas', icon: CheckSquare },
-  { href: '/dashboard/prospecção', label: 'Prospecção', icon: TrendingUp },
+  { href: '/dashboard/prospeccao', label: 'Prospecção', icon: TrendingUp },
   { href: '/dashboard/financeiro', label: 'Financeiro', icon: DollarSign },
   { href: '/dashboard/metricas', label: 'Métricas', icon: BarChart2 },
   { href: '/dashboard/docs', label: 'Docs', icon: BookOpen },
