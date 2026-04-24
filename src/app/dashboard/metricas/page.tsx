@@ -1,12 +1,14 @@
-// metricas v2
+// metricas v3
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type MetricasMes } from '@/types'
 import { cn } from '@/lib/utils'
-import { Plus, X, BarChart2, TrendingUp, TrendingDown, Users, Eye } from 'lucide-react'
+import { Plus, X, BarChart2, TrendingUp, TrendingDown, Users, Eye, Upload, CheckCircle, AlertCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+
+const ABAS = ['Visão geral', 'Importar dados', 'Performance de posts']
 
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   if (!open) return null
@@ -24,9 +26,15 @@ export default function MetricasPage() {
   const supabase = createClient()
   const [metricas, setMetricas] = useState<(MetricasMes & { clientes: { nome: string; cor: string } | null })[]>([])
   const [clientes, setClientes] = useState<{ id: string; nome: string; cor: string }[]>([])
+  const [posts, setPosts] = useState<any[]>([])
   const [clienteSelecionado, setClienteSelecionado] = useState('')
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
+  const [abaAtiva, setAbaAtiva] = useState('Visão geral')
+  const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [importMsg, setImportMsg] = useState('')
+  const [dadosImportados, setDadosImportados] = useState<any>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     cliente_id: '', plataforma: 'Instagram', mes_referencia: '',
     seguidores: 0, alcance: 0, impressoes: 0, engajamento: 0,
@@ -34,12 +42,14 @@ export default function MetricasPage() {
   })
 
   async function carregar() {
-    const [{ data: m }, { data: c }] = await Promise.all([
+    const [{ data: m }, { data: c }, { data: p }] = await Promise.all([
       supabase.from('metricas').select('*, clientes(nome, cor)').order('mes_referencia', { ascending: false }),
-      supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome')
+      supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome'),
+      supabase.from('posts').select('*, clientes(nome, cor)').eq('status_interno', 'publicado').order('data_publicacao', { ascending: false })
     ])
     setMetricas(m || [])
     setClientes(c || [])
+    setPosts(p || [])
     if (c && c.length > 0 && !clienteSelecionado) setClienteSelecionado(c[0].id)
     setLoading(false)
   }
@@ -54,17 +64,51 @@ export default function MetricasPage() {
     carregar()
   }
 
+  async function importarJSON(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportStatus('idle')
+    setImportMsg('')
+    try {
+      const texto = await file.text()
+      const dados = JSON.parse(texto)
+      if (!dados.cliente_id && !dados.cliente_nome) throw new Error('Arquivo inválido: falta cliente_id ou cliente_nome')
+      if (!dados.mes_referencia) throw new Error('Arquivo inválido: falta mes_referencia')
+      setDadosImportados(dados)
+      let clienteId = dados.cliente_id
+      if (!clienteId && dados.cliente_nome) {
+        const cliente = clientes.find(c => c.nome.toLowerCase() === dados.cliente_nome.toLowerCase())
+        if (!cliente) throw new Error(`Cliente "${dados.cliente_nome}" não encontrado`)
+        clienteId = cliente.id
+      }
+      await supabase.from('metricas').upsert({
+        cliente_id: clienteId, plataforma: dados.plataforma || 'Instagram',
+        mes_referencia: dados.mes_referencia, seguidores: dados.seguidores || 0,
+        alcance: dados.alcance || 0, impressoes: dados.impressoes || 0,
+        engajamento: dados.engajamento || 0, novos_seguidores: dados.novos_seguidores || 0,
+        posts_publicados: dados.posts_publicados || 0,
+      }, { onConflict: 'cliente_id,plataforma,mes_referencia' })
+      setImportStatus('success')
+      setImportMsg(`Métricas de ${dados.mes_referencia} importadas com sucesso!`)
+      carregar()
+    } catch (err: any) {
+      setImportStatus('error')
+      setImportMsg(err.message || 'Erro ao ler o arquivo')
+    }
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
   const metricasCliente = metricas
     .filter(m => m.cliente_id === clienteSelecionado)
     .sort((a, b) => a.mes_referencia.localeCompare(b.mes_referencia))
 
+  const postsCliente = posts.filter(p => p.cliente_id === clienteSelecionado)
   const ultima = metricasCliente[metricasCliente.length - 1]
   const penultima = metricasCliente[metricasCliente.length - 2]
 
   const variacao = (atual?: number, anterior?: number) => {
     if (!atual || !anterior) return null
-    const pct = ((atual - anterior) / anterior * 100).toFixed(1)
-    return Number(pct)
+    return Number(((atual - anterior) / anterior * 100).toFixed(1))
   }
 
   const StatCard = ({ label, valor, anterior, icon: Icon, formato = 'numero' }: any) => {
@@ -113,94 +157,217 @@ export default function MetricasPage() {
         ))}
       </div>
 
-      {metricasCliente.length === 0 ? (
-        <div className="card text-center py-16">
-          <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-500">Nenhuma métrica cadastrada para este cliente</p>
-          <button onClick={() => { setForm(f => ({ ...f, cliente_id: clienteSelecionado })); setModalAberto(true) }}
-            className="btn-primary mt-4 inline-flex items-center gap-2">
-            <Plus size={16} /> Adicionar primeiro mês
+      {/* Abas */}
+      <div className="flex gap-1 bg-creme rounded-xl p-1 w-fit">
+        {ABAS.map(aba => (
+          <button key={aba} onClick={() => setAbaAtiva(aba)}
+            className={cn('px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              abaAtiva === aba ? 'bg-white shadow-card text-vinho' : 'text-gray-500 hover:text-gray-700')}>
+            {aba}
           </button>
-        </div>
-      ) : (
+        ))}
+      </div>
+
+      {/* ABA 1 — VISÃO GERAL */}
+      {abaAtiva === 'Visão geral' && (
         <>
-          {/* Cards do último mês */}
-          {ultima && (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="section-title">Último mês: {ultima.mes_referencia}</h2>
-                <span className="text-xs text-gray-400">{ultima.plataforma}</span>
+          {metricasCliente.length === 0 ? (
+            <div className="card text-center py-16">
+              <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">Nenhuma métrica cadastrada para este cliente</p>
+              <div className="flex gap-3 justify-center mt-4">
+                <button onClick={() => { setForm(f => ({ ...f, cliente_id: clienteSelecionado })); setModalAberto(true) }}
+                  className="btn-primary inline-flex items-center gap-2"><Plus size={16} /> Adicionar manualmente</button>
+                <button onClick={() => setAbaAtiva('Importar dados')} className="btn-secondary inline-flex items-center gap-2">
+                  <Upload size={16} /> Importar arquivo</button>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Seguidores" valor={ultima.seguidores} anterior={penultima?.seguidores} icon={Users} />
-                <StatCard label="Novos seguidores" valor={ultima.novos_seguidores} anterior={penultima?.novos_seguidores} icon={TrendingUp} />
-                <StatCard label="Alcance" valor={ultima.alcance} anterior={penultima?.alcance} icon={Eye} />
-                <StatCard label="Engajamento" valor={ultima.engajamento} anterior={penultima?.engajamento} icon={BarChart2} formato="pct" />
+            </div>
+          ) : (
+            <>
+              {ultima && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <h2 className="section-title">Último mês: {ultima.mes_referencia}</h2>
+                    <span className="text-xs text-gray-400">{ultima.plataforma}</span>
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatCard label="Seguidores" valor={ultima.seguidores} anterior={penultima?.seguidores} icon={Users} />
+                    <StatCard label="Novos seguidores" valor={ultima.novos_seguidores} anterior={penultima?.novos_seguidores} icon={TrendingUp} />
+                    <StatCard label="Alcance" valor={ultima.alcance} anterior={penultima?.alcance} icon={Eye} />
+                    <StatCard label="Engajamento" valor={ultima.engajamento} anterior={penultima?.engajamento} icon={BarChart2} formato="pct" />
+                  </div>
+                </>
+              )}
+              {metricasCliente.length > 1 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  <div className="card">
+                    <h3 className="section-title text-sm mb-4">Crescimento de seguidores</h3>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={metricasCliente}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe9" />
+                        <XAxis dataKey="mes_referencia" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="seguidores" stroke="#6B0F2A" strokeWidth={2} dot={{ fill: '#6B0F2A', r: 4 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="card">
+                    <h3 className="section-title text-sm mb-4">Alcance por mês</h3>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={metricasCliente}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe9" />
+                        <XAxis dataKey="mes_referencia" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Bar dataKey="alcance" fill="#C2185B" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+              <div className="card overflow-x-auto">
+                <h3 className="section-title text-sm mb-4">Histórico completo</h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      {['Mês','Plataforma','Seguidores','Novos','Alcance','Impressões','Engajamento','Posts'].map(h => (
+                        <th key={h} className="text-left text-xs font-medium text-gray-500 pb-2 pr-4">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...metricasCliente].reverse().map(m => (
+                      <tr key={m.id} className="border-b border-gray-50 hover:bg-creme/50 transition-colors">
+                        <td className="py-2 pr-4 font-medium text-gray-800">{m.mes_referencia}</td>
+                        <td className="py-2 pr-4 text-gray-500">{m.plataforma}</td>
+                        <td className="py-2 pr-4">{m.seguidores?.toLocaleString('pt-BR')}</td>
+                        <td className="py-2 pr-4 text-emerald-600">+{m.novos_seguidores}</td>
+                        <td className="py-2 pr-4">{m.alcance?.toLocaleString('pt-BR')}</td>
+                        <td className="py-2 pr-4">{m.impressoes?.toLocaleString('pt-BR')}</td>
+                        <td className="py-2 pr-4">{m.engajamento}%</td>
+                        <td className="py-2 pr-4">{m.posts_publicados}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </>
           )}
-
-          {/* Gráficos */}
-          {metricasCliente.length > 1 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <div className="card">
-                <h3 className="section-title text-sm mb-4">Crescimento de seguidores</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={metricasCliente}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe9" />
-                    <XAxis dataKey="mes_referencia" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="seguidores" stroke="#6B0F2A" strokeWidth={2} dot={{ fill: '#6B0F2A', r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="card">
-                <h3 className="section-title text-sm mb-4">Alcance por mês</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={metricasCliente}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe9" />
-                    <XAxis dataKey="mes_referencia" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Bar dataKey="alcance" fill="#C2185B" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-
-          {/* Tabela histórico */}
-          <div className="card overflow-x-auto">
-            <h3 className="section-title text-sm mb-4">Histórico completo</h3>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {['Mês', 'Plataforma', 'Seguidores', 'Novos', 'Alcance', 'Impressões', 'Engajamento', 'Posts'].map(h => (
-                    <th key={h} className="text-left text-xs font-medium text-gray-500 pb-2 pr-4">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...metricasCliente].reverse().map(m => (
-                  <tr key={m.id} className="border-b border-gray-50 hover:bg-creme/50 transition-colors">
-                    <td className="py-2 pr-4 font-medium text-gray-800">{m.mes_referencia}</td>
-                    <td className="py-2 pr-4 text-gray-500">{m.plataforma}</td>
-                    <td className="py-2 pr-4">{m.seguidores?.toLocaleString('pt-BR')}</td>
-                    <td className="py-2 pr-4 text-emerald-600">+{m.novos_seguidores}</td>
-                    <td className="py-2 pr-4">{m.alcance?.toLocaleString('pt-BR')}</td>
-                    <td className="py-2 pr-4">{m.impressoes?.toLocaleString('pt-BR')}</td>
-                    <td className="py-2 pr-4">{m.engajamento}%</td>
-                    <td className="py-2 pr-4">{m.posts_publicados}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </>
       )}
 
+      {/* ABA 2 — IMPORTAR DADOS */}
+      {abaAtiva === 'Importar dados' && (
+        <div className="space-y-5">
+          <div className="card border-l-4 border-l-vinho">
+            <h3 className="section-title text-base mb-3">Como funciona</h3>
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>1. Mande os prints das métricas do Instagram para o Claude no chat</p>
+              <p>2. Peça: <span className="font-mono text-xs bg-creme px-2 py-0.5 rounded">"Extraia as métricas desse print e me dê o arquivo JSON para importar na plataforma"</span></p>
+              <p>3. Baixe o arquivo JSON que o Claude gerar</p>
+              <p>4. Faça upload aqui embaixo — os dados serão preenchidos automaticamente!</p>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="section-title text-sm mb-3">Formato esperado do JSON</h3>
+            <pre className="bg-creme rounded-xl p-4 text-xs font-mono text-gray-700 overflow-x-auto">{`{
+  "cliente_nome": "Júlio Teixeira",
+  "plataforma": "Instagram",
+  "mes_referencia": "Abril 2026",
+  "seguidores": 12500,
+  "novos_seguidores": 320,
+  "alcance": 45000,
+  "impressoes": 89000,
+  "engajamento": 4.2,
+  "posts_publicados": 12
+}`}</pre>
+          </div>
+
+          <div className="card">
+            <h3 className="section-title text-sm mb-4">Importar arquivo</h3>
+            <div onClick={() => fileRef.current?.click()}
+              className="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center cursor-pointer hover:border-vinho hover:bg-rosa-pale/10 transition-all">
+              <Upload size={32} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-sm font-medium text-gray-600">Clique para selecionar o arquivo JSON</p>
+              <p className="text-xs text-gray-400 mt-1">Apenas arquivos .json</p>
+              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={importarJSON} />
+            </div>
+            {importStatus === 'success' && (
+              <div className="mt-4 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                <CheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-emerald-700">{importMsg}</p>
+                  {dadosImportados && (
+                    <p className="text-xs text-emerald-600 mt-0.5">
+                      {dadosImportados.seguidores?.toLocaleString('pt-BR')} seguidores · {dadosImportados.alcance?.toLocaleString('pt-BR')} alcance · {dadosImportados.engajamento}% engajamento
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {importStatus === 'error' && (
+              <div className="mt-4 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+                <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
+                <p className="text-sm text-red-700">{importMsg}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ABA 3 — PERFORMANCE DE POSTS */}
+      {abaAtiva === 'Performance de posts' && (
+        <div className="space-y-4">
+          {postsCliente.length === 0 ? (
+            <div className="card text-center py-16">
+              <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">Nenhum post publicado para este cliente ainda</p>
+              <p className="text-xs text-gray-400 mt-1">Posts marcados como "Publicado" no Kanban aparecem aqui</p>
+            </div>
+          ) : (
+            <>
+              <div className="card">
+                <h3 className="section-title text-sm mb-1">Posts publicados</h3>
+                <p className="text-xs text-gray-400 mb-4">Posts com status "Publicado" no Kanban</p>
+                <div className="space-y-3">
+                  {postsCliente.map(post => (
+                    <div key={post.id} className="flex items-center gap-4 p-3 rounded-xl hover:bg-creme transition-all border border-gray-50">
+                      <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: post.clientes?.cor || '#6B0F2A' }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{post.titulo}</p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="badge bg-creme text-gray-600 text-xs capitalize">{post.tipo}</span>
+                          {post.data_publicacao && <span className="text-xs text-gray-400">{new Date(post.data_publicacao).toLocaleDateString('pt-BR')}</span>}
+                          {post.tema && <span className="text-xs text-gray-400">{post.tema}</span>}
+                        </div>
+                      </div>
+                      <span className="badge bg-emerald-100 text-emerald-700 text-xs">Publicado</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card">
+                <h3 className="section-title text-sm mb-4">Distribuição por tipo</h3>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  {['reels','carrossel','feed','stories','tiktok'].map(tipo => {
+                    const count = postsCliente.filter(p => p.tipo === tipo).length
+                    return (
+                      <div key={tipo} className={cn('card text-center py-3', count === 0 && 'opacity-40')}>
+                        <p className="text-2xl font-display font-bold text-vinho">{count}</p>
+                        <p className="text-xs text-gray-500 capitalize mt-0.5">{tipo}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Modal manual */}
       <Modal open={modalAberto} onClose={() => setModalAberto(false)}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -219,7 +386,7 @@ export default function MetricasPage() {
               <div>
                 <label className="label">Plataforma</label>
                 <select className="input" value={form.plataforma} onChange={e => setForm(f => ({ ...f, plataforma: e.target.value }))}>
-                  {['Instagram', 'TikTok', 'LinkedIn', 'YouTube', 'Facebook'].map(p => <option key={p}>{p}</option>)}
+                  {['Instagram','TikTok','LinkedIn','YouTube','Facebook'].map(p => <option key={p}>{p}</option>)}
                 </select>
               </div>
             </div>
