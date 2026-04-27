@@ -1,22 +1,14 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
-import ChatFlutuante from '@/components/layout/ChatFlutuante'
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login')
-
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-offwhite">
       <Sidebar />
-      <main className="flex-1 ml-56 transition-all duration-300 min-h-screen">
-        <div className="p-6 max-w-[1400px] mx-auto animate-fade-in">
+      <main className="flex-1 ml-56 min-h-screen">
+        <div className="p-6 max-w-[1400px] mx-auto">
           {children}
         </div>
       </main>
-      <ChatFlutuante />
     </div>
   )
 }
