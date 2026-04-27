@@ -1,4 +1,7 @@
+'use client'
+
 import Sidebar from '@/components/layout/Sidebar'
+import ChatFlutuante from '@/components/layout/ChatFlutuante'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,6 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </div>
       </main>
+      <ChatFlutuante />
     </div>
   )
 }
