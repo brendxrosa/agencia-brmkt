@@ -132,8 +132,7 @@ export const BANCO_PERGUNTAS: Pergunta[] = [
 
 // Merge inteligente: une perguntas de múltiplos pacotes removendo duplicatas por ID
 export function mergePerguntasPorPacotes(categoriasLista: string[][]): Pergunta[] {
-  const todasCategorias = [...new Set(categoriasLista.flat())]
-  const idsVistos = new Set<string>()
+const todasCategorias = categoriasLista.flat().filter((v, i, a) => a.indexOf(v) === i)  const idsVistos = new Set<string>()
   return BANCO_PERGUNTAS.filter(p => {
     if (!todasCategorias.includes(p.categoria)) return false
     if (idsVistos.has(p.id)) return false
