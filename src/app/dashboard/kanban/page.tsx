@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type Post } from '@/types'
 import { STATUS_POST_LABELS, STATUS_POST_CORES, cn, formatDate } from '@/lib/utils'
-import { Plus, X, Calendar, Instagram, Video, Image, Layout, Link, Paperclip } from 'lucide-react'
+import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, Save } from 'lucide-react'
 
 const COLUNAS = [
   'briefing', 'copy', 'design', 'edicao',
@@ -38,20 +38,32 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   )
 }
 
+type FormPost = {
+  cliente_id: string; titulo: string; tipo: Post['tipo']
+  data_publicacao: string; tema: string; copy: string
+  legenda: string; direcionamento: string; link_midia: string; tipo_midia: string
+  status_interno: Post['status_interno']
+}
+
+const formVazio: FormPost = {
+  cliente_id: '', titulo: '', tipo: 'reels', data_publicacao: '',
+  tema: '', copy: '', legenda: '', direcionamento: '',
+  link_midia: '', tipo_midia: 'link', status_interno: 'briefing'
+}
+
 export default function KanbanPage() {
   const supabase = createClient()
   const [posts, setPosts] = useState<any[]>([])
-  const [clientes, setClientes] = useState<{ id: string; nome: string; cor: string }[]>([])
+  const [clientes, setClientes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [modalAberto, setModalAberto] = useState(false)
+  const [modalNovo, setModalNovo] = useState(false)
   const [postDetalhes, setPostDetalhes] = useState<any>(null)
+  const [modoEditar, setModoEditar] = useState(false)
   const [filtroCliente, setFiltroCliente] = useState('todos')
   const [arrastando, setArrastando] = useState<string | null>(null)
-  const [form, setForm] = useState({
-    cliente_id: '', titulo: '', tipo: 'reels' as Post['tipo'],
-    data_publicacao: '', tema: '', copy: '', legenda: '',
-    direcionamento: '', link_midia: '', tipo_midia: 'link'
-  })
+  const [form, setForm] = useState<FormPost>(formVazio)
+  const [formEditar, setFormEditar] = useState<FormPost>(formVazio)
+  const [salvando, setSalvando] = useState(false)
 
   async function carregar() {
     const [{ data: p }, { data: c }] = await Promise.all([
@@ -65,32 +77,128 @@ export default function KanbanPage() {
 
   useEffect(() => { carregar() }, [])
 
+  function abrirDetalhes(post: any) {
+    setPostDetalhes(post)
+    setFormEditar({
+      cliente_id: post.cliente_id || '',
+      titulo: post.titulo || '',
+      tipo: post.tipo || 'reels',
+      data_publicacao: post.data_publicacao || '',
+      tema: post.tema || '',
+      copy: post.copy || '',
+      legenda: post.legenda || '',
+      direcionamento: post.direcionamento || '',
+      link_midia: post.link_midia || '',
+      tipo_midia: post.tipo_midia || 'link',
+      status_interno: post.status_interno || 'briefing',
+    })
+    setModoEditar(false)
+  }
+
   async function criarPost() {
     if (!form.cliente_id || !form.titulo) return alert('Cliente e título são obrigatórios!')
-    await supabase.from('posts').insert({
-      ...form,
-      status_interno: 'briefing',
-      status_cliente: 'pendente'
-    })
-    setModalAberto(false)
-    setForm({ cliente_id: '', titulo: '', tipo: 'reels', data_publicacao: '', tema: '', copy: '', legenda: '', direcionamento: '', link_midia: '', tipo_midia: 'link' })
+    await supabase.from('posts').insert({ ...form, status_cliente: 'pendente' })
+    setModalNovo(false)
+    setForm(formVazio)
+    carregar()
+  }
+
+  async function salvarEdicao() {
+    if (!postDetalhes?.id) return
+    setSalvando(true)
+    await supabase.from('posts').update(formEditar).eq('id', postDetalhes.id)
+    setSalvando(false)
+    setModoEditar(false)
+    // Atualiza post nos detalhes
+    const atualizado = { ...postDetalhes, ...formEditar, clientes: postDetalhes.clientes }
+    setPostDetalhes(atualizado)
     carregar()
   }
 
   async function moverPost(postId: string, novoStatus: string) {
     await supabase.from('posts').update({ status_interno: novoStatus }).eq('id', postId)
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status_interno: novoStatus as Post['status_interno'] } : p))
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status_interno: novoStatus } : p))
   }
 
   async function excluirPost(id: string) {
     if (!confirm('Excluir este post?')) return
     await supabase.from('posts').delete().eq('id', id)
-    if (postDetalhes?.id === id) setPostDetalhes(null)
+    setPostDetalhes(null)
     carregar()
   }
 
   const postsFiltrados = filtroCliente === 'todos' ? posts : posts.filter(p => p.cliente_id === filtroCliente)
   const postsPorColuna = (status: string) => postsFiltrados.filter(p => p.status_interno === status)
+
+  const setF = (k: keyof FormPost, v: any) => setForm(f => ({ ...f, [k]: v }))
+  const setFE = (k: keyof FormPost, v: any) => setFormEditar(f => ({ ...f, [k]: v }))
+
+  const CamposPost = ({ f, set, showStatus = false }: { f: FormPost; set: (k: keyof FormPost, v: any) => void; showStatus?: boolean }) => (
+    <div className="space-y-4">
+      {!showStatus && (
+        <div>
+          <label className="label">Cliente *</label>
+          <select className="input" value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
+            <option value="">Selecione o cliente</option>
+            {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="label">Título *</label>
+        <input className="input" value={f.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Dicas de fisioterapia pós-lesão" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Tipo</label>
+          <select className="input" value={f.tipo} onChange={e => set('tipo', e.target.value as Post['tipo'])}>
+            <option value="reels">Reels</option>
+            <option value="carrossel">Carrossel</option>
+            <option value="feed">Feed</option>
+            <option value="stories">Stories</option>
+            <option value="tiktok">TikTok</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Data de publicação</label>
+          <input className="input" type="date" value={f.data_publicacao} onChange={e => set('data_publicacao', e.target.value)} />
+        </div>
+      </div>
+      {showStatus && (
+        <div>
+          <label className="label">Status</label>
+          <select className="input" value={f.status_interno} onChange={e => set('status_interno', e.target.value as Post['status_interno'])}>
+            {COLUNAS.map(c => <option key={c} value={c}>{STATUS_POST_LABELS[c]}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="label">Tema</label>
+        <input className="input" value={f.tema} onChange={e => set('tema', e.target.value)} placeholder="Ex: Educação, Bastidores..." />
+      </div>
+      <div>
+        <label className="label">Direcionamento</label>
+        <textarea className="input resize-none" rows={2} value={f.direcionamento} onChange={e => set('direcionamento', e.target.value)} placeholder="Instruções para a equipe..." />
+      </div>
+      <div>
+        <label className="label">Copy / Roteiro</label>
+        <textarea className="input resize-none" rows={3} value={f.copy} onChange={e => set('copy', e.target.value)} placeholder="Texto do post ou roteiro do vídeo..." />
+      </div>
+      <div>
+        <label className="label">Legenda</label>
+        <textarea className="input resize-none" rows={2} value={f.legenda} onChange={e => set('legenda', e.target.value)} placeholder="Legenda para o Instagram..." />
+      </div>
+      <div>
+        <label className="label flex items-center gap-1.5"><Paperclip size={13} /> Mídia / Arquivo</label>
+        <div className="flex gap-2">
+          <select className="input w-40 flex-shrink-0" value={f.tipo_midia} onChange={e => set('tipo_midia', e.target.value)}>
+            {TIPO_MIDIA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </select>
+          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://..." />
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-5">
@@ -99,12 +207,12 @@ export default function KanbanPage() {
           <h1 className="page-title">Kanban Editorial</h1>
           <p className="text-gray-500 text-sm mt-1">{posts.length} posts no pipeline</p>
         </div>
-        <button onClick={() => setModalAberto(true)} className="btn-primary flex items-center gap-2">
+        <button onClick={() => setModalNovo(true)} className="btn-primary flex items-center gap-2">
           <Plus size={16} /> Novo post
         </button>
       </div>
 
-      {/* Filtro cliente */}
+      {/* Filtro */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFiltroCliente('todos')}
           className={cn('px-3 py-1.5 rounded-xl text-sm font-medium transition-all',
@@ -130,8 +238,7 @@ export default function KanbanPage() {
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-6">
           {COLUNAS.map(coluna => (
-            <div key={coluna}
-              className="w-64 flex-shrink-0 bg-creme/50 rounded-2xl"
+            <div key={coluna} className="w-64 flex-shrink-0 bg-creme/50 rounded-2xl"
               onDragOver={e => e.preventDefault()}
               onDrop={e => {
                 e.preventDefault()
@@ -139,11 +246,9 @@ export default function KanbanPage() {
                 if (postId) moverPost(postId, coluna)
                 setArrastando(null)
               }}>
-              <div className="p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={cn('badge text-xs', STATUS_POST_CORES[coluna])}>{STATUS_POST_LABELS[coluna]}</span>
-                  <span className="text-xs text-gray-400 font-medium">{postsPorColuna(coluna).length}</span>
-                </div>
+              <div className="p-3 flex items-center gap-2">
+                <span className={cn('badge text-xs', STATUS_POST_CORES[coluna])}>{STATUS_POST_LABELS[coluna]}</span>
+                <span className="text-xs text-gray-400 font-medium">{postsPorColuna(coluna).length}</span>
               </div>
 
               <div className="px-3 pb-3 space-y-2 min-h-24">
@@ -152,13 +257,13 @@ export default function KanbanPage() {
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('postId', post.id); setArrastando(post.id) }}
                     onDragEnd={() => setArrastando(null)}
-                    onClick={() => setPostDetalhes(post)}
-                    className={cn('bg-white rounded-xl p-3 shadow-card cursor-grab active:cursor-grabbing group transition-all hover:shadow-card-hover',
+                    onClick={() => abrirDetalhes(post)}
+                    className={cn('bg-white rounded-xl p-3 shadow-card cursor-pointer group transition-all hover:shadow-card-hover',
                       arrastando === post.id && 'opacity-40')}>
 
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: post.clientes?.cor || '#6B0F2A' }} />
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: post.clientes?.cor || '#6B0F2A' }} />
                         <span className="text-xs text-gray-400 truncate max-w-28">{post.clientes?.nome}</span>
                       </div>
                       <button onClick={e => { e.stopPropagation(); excluirPost(post.id) }}
@@ -177,8 +282,7 @@ export default function KanbanPage() {
                       <div className="flex items-center gap-1.5">
                         {post.link_midia && (
                           <a href={post.link_midia} target="_blank" rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="text-vinho hover:text-rosa transition-colors" title="Ver mídia">
+                            onClick={e => e.stopPropagation()} className="text-vinho hover:text-rosa" title="Ver mídia">
                             <Paperclip size={12} />
                           </a>
                         )}
@@ -191,9 +295,7 @@ export default function KanbanPage() {
                       </div>
                     </div>
 
-                    {/* Mover para */}
                     <div className="mt-2 pt-2 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-all">
-                      <p className="text-xs text-gray-400 mb-1">Mover para:</p>
                       <div className="flex flex-wrap gap-1">
                         {COLUNAS.filter(c => c !== coluna).slice(0, 3).map(c => (
                           <button key={c} onClick={e => { e.stopPropagation(); moverPost(post.id, c) }}
@@ -205,7 +307,6 @@ export default function KanbanPage() {
                     </div>
                   </div>
                 ))}
-
                 {postsPorColuna(coluna).length === 0 && (
                   <div className="text-center py-6 text-gray-300 text-xs">Nenhum post aqui</div>
                 )}
@@ -215,8 +316,8 @@ export default function KanbanPage() {
         </div>
       )}
 
-      {/* Modal detalhes do post */}
-      <Modal open={!!postDetalhes} onClose={() => setPostDetalhes(null)}>
+      {/* Modal detalhes/edição */}
+      <Modal open={!!postDetalhes} onClose={() => { setPostDetalhes(null); setModoEditar(false) }}>
         {postDetalhes && (
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -224,150 +325,103 @@ export default function KanbanPage() {
                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: postDetalhes.clientes?.cor }} />
                 <span className="text-sm text-gray-500">{postDetalhes.clientes?.nome}</span>
               </div>
-              <button onClick={() => setPostDetalhes(null)} className="btn-ghost p-2"><X size={18} /></button>
+              <div className="flex items-center gap-2">
+                {!modoEditar ? (
+                  <button onClick={() => setModoEditar(true)} className="btn-ghost flex items-center gap-1.5 text-sm py-1.5">
+                    <Edit2 size={14} /> Editar
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={salvarEdicao} disabled={salvando} className="btn-primary flex items-center gap-1.5 text-sm py-1.5">
+                      <Save size={14} /> {salvando ? 'Salvando...' : 'Salvar'}
+                    </button>
+                    <button onClick={() => setModoEditar(false)} className="btn-ghost text-sm py-1.5">Cancelar</button>
+                  </>
+                )}
+                <button onClick={() => { setPostDetalhes(null); setModoEditar(false) }} className="btn-ghost p-2">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
-            <h2 className="font-display text-xl font-semibold text-gray-800 mb-1">{postDetalhes.titulo}</h2>
-            <div className="flex items-center gap-3 mb-4">
-              <span className={cn('badge text-xs', STATUS_POST_CORES[postDetalhes.status_interno])}>
-                {STATUS_POST_LABELS[postDetalhes.status_interno]}
-              </span>
-              <span className="badge bg-creme text-gray-600 text-xs capitalize">{postDetalhes.tipo}</span>
-              {postDetalhes.data_publicacao && (
-                <span className="text-xs text-gray-400">📅 {formatDate(postDetalhes.data_publicacao)}</span>
-              )}
-            </div>
+            {modoEditar ? (
+              <CamposPost f={formEditar} set={setFE} showStatus={true} />
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="font-display text-xl font-semibold text-gray-800">{postDetalhes.titulo}</h2>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <span className={cn('badge text-xs', STATUS_POST_CORES[postDetalhes.status_interno])}>
+                      {STATUS_POST_LABELS[postDetalhes.status_interno]}
+                    </span>
+                    <span className="badge bg-creme text-gray-600 text-xs capitalize">{postDetalhes.tipo}</span>
+                    {postDetalhes.data_publicacao && (
+                      <span className="text-xs text-gray-400">📅 {formatDate(postDetalhes.data_publicacao)}</span>
+                    )}
+                    {postDetalhes.status_cliente && (
+                      <span className={cn('badge text-xs', {
+                        'bg-emerald-100 text-emerald-700': postDetalhes.status_cliente === 'aprovado',
+                        'bg-red-100 text-red-700': postDetalhes.status_cliente === 'reprovado',
+                        'bg-orange-100 text-orange-700': postDetalhes.status_cliente === 'pendente',
+                      })}>
+                        Cliente: {postDetalhes.status_cliente}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-            <div className="space-y-3">
-              {postDetalhes.tema && (
-                <div>
-                  <p className="label">Tema</p>
-                  <p className="text-sm text-gray-700">{postDetalhes.tema}</p>
-                </div>
-              )}
-              {postDetalhes.direcionamento && (
-                <div>
-                  <p className="label">Direcionamento</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{postDetalhes.direcionamento}</p>
-                </div>
-              )}
-              {postDetalhes.copy && (
-                <div className="bg-creme rounded-xl p-3">
-                  <p className="label">Copy / Roteiro</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{postDetalhes.copy}</p>
-                </div>
-              )}
-              {postDetalhes.legenda && (
-                <div className="bg-creme rounded-xl p-3">
-                  <p className="label">Legenda</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{postDetalhes.legenda}</p>
-                </div>
-              )}
-              {postDetalhes.link_midia && (
-                <div>
-                  <p className="label">Mídia / Arquivo</p>
-                  <a href={postDetalhes.link_midia} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-vinho hover:text-rosa transition-colors">
-                    <Paperclip size={14} />
-                    <span className="truncate">{postDetalhes.tipo_midia ? `${postDetalhes.tipo_midia}: ` : ''}{postDetalhes.link_midia}</span>
-                  </a>
-                </div>
-              )}
-              {postDetalhes.feedback_cliente && (
-                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
-                  <p className="label text-orange-600">Feedback do cliente</p>
-                  <p className="text-sm text-orange-700">{postDetalhes.feedback_cliente}</p>
-                </div>
-              )}
-            </div>
+                {postDetalhes.tema && <div><p className="label">Tema</p><p className="text-sm text-gray-700">{postDetalhes.tema}</p></div>}
+                {postDetalhes.direcionamento && <div><p className="label">Direcionamento</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{postDetalhes.direcionamento}</p></div>}
+                {postDetalhes.copy && (
+                  <div className="bg-creme rounded-xl p-3">
+                    <p className="label">Copy / Roteiro</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{postDetalhes.copy}</p>
+                  </div>
+                )}
+                {postDetalhes.legenda && (
+                  <div className="bg-creme rounded-xl p-3">
+                    <p className="label">Legenda</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{postDetalhes.legenda}</p>
+                  </div>
+                )}
+                {postDetalhes.link_midia && (
+                  <div>
+                    <p className="label">Mídia</p>
+                    <a href={postDetalhes.link_midia} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-vinho hover:text-rosa transition-colors">
+                      <Paperclip size={14} />
+                      {postDetalhes.tipo_midia}: {postDetalhes.link_midia}
+                    </a>
+                  </div>
+                )}
+                {postDetalhes.feedback_cliente && (
+                  <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                    <p className="label text-orange-600">Feedback do cliente</p>
+                    <p className="text-sm text-orange-700">{postDetalhes.feedback_cliente}</p>
+                  </div>
+                )}
 
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => excluirPost(postDetalhes.id)} className="btn-danger flex-1 justify-center">Excluir</button>
-              <button onClick={() => setPostDetalhes(null)} className="btn-secondary flex-1">Fechar</button>
-            </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => excluirPost(postDetalhes.id)} className="btn-danger flex-1 justify-center">Excluir</button>
+                  <button onClick={() => { setPostDetalhes(null); setModoEditar(false) }} className="btn-secondary flex-1">Fechar</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Modal>
 
       {/* Modal novo post */}
-      <Modal open={modalAberto} onClose={() => setModalAberto(false)}>
+      <Modal open={modalNovo} onClose={() => setModalNovo(false)}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-display text-xl font-semibold text-vinho">Novo post</h2>
-            <button onClick={() => setModalAberto(false)} className="btn-ghost p-2"><X size={18} /></button>
+            <button onClick={() => setModalNovo(false)} className="btn-ghost p-2"><X size={18} /></button>
           </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="label">Cliente *</label>
-              <select className="input" value={form.cliente_id} onChange={e => setForm(f => ({ ...f, cliente_id: e.target.value }))}>
-                <option value="">Selecione o cliente</option>
-                {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="label">Título do post *</label>
-              <input className="input" value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} placeholder="Ex: Dicas de fisioterapia pós-lesão" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Tipo</label>
-                <select className="input" value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value as Post['tipo'] }))}>
-                  <option value="reels">Reels</option>
-                  <option value="carrossel">Carrossel</option>
-                  <option value="feed">Feed</option>
-                  <option value="stories">Stories</option>
-                  <option value="tiktok">TikTok</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Data de publicação</label>
-                <input className="input" type="date" value={form.data_publicacao} onChange={e => setForm(f => ({ ...f, data_publicacao: e.target.value }))} />
-              </div>
-            </div>
-
-            <div>
-              <label className="label">Tema</label>
-              <input className="input" value={form.tema} onChange={e => setForm(f => ({ ...f, tema: e.target.value }))} placeholder="Ex: Educação, Bastidores, Depoimento..." />
-            </div>
-
-            <div>
-              <label className="label">Direcionamento</label>
-              <textarea className="input resize-none" rows={2} value={form.direcionamento} onChange={e => setForm(f => ({ ...f, direcionamento: e.target.value }))} placeholder="Instruções para a equipe..." />
-            </div>
-
-            <div>
-              <label className="label">Copy / Roteiro</label>
-              <textarea className="input resize-none" rows={3} value={form.copy} onChange={e => setForm(f => ({ ...f, copy: e.target.value }))} placeholder="Texto do post ou roteiro do vídeo..." />
-            </div>
-
-            <div>
-              <label className="label">Legenda</label>
-              <textarea className="input resize-none" rows={2} value={form.legenda} onChange={e => setForm(f => ({ ...f, legenda: e.target.value }))} placeholder="Legenda para o Instagram..." />
-            </div>
-
-            {/* Campo de mídia */}
-            <div>
-              <label className="label flex items-center gap-1.5">
-                <Paperclip size={13} /> Mídia / Arquivo (link)
-              </label>
-              <div className="flex gap-2">
-                <select className="input w-40 flex-shrink-0" value={form.tipo_midia} onChange={e => setForm(f => ({ ...f, tipo_midia: e.target.value }))}>
-                  {TIPO_MIDIA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-                </select>
-                <input className="input flex-1" value={form.link_midia}
-                  onChange={e => setForm(f => ({ ...f, link_midia: e.target.value }))}
-                  placeholder="https://..." />
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Cole o link do Drive, Canva, WeTransfer ou qualquer outro</p>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setModalAberto(false)} className="btn-secondary flex-1">Cancelar</button>
-              <button onClick={criarPost} className="btn-primary flex-1 justify-center">Criar post</button>
-            </div>
+          <CamposPost f={form} set={setF} />
+          <div className="flex gap-3 pt-4">
+            <button onClick={() => setModalNovo(false)} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={criarPost} className="btn-primary flex-1 justify-center">Criar post</button>
           </div>
         </div>
       </Modal>
