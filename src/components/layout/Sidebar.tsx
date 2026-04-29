@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Calendar, Kanban, CalendarDays,
   CheckSquare, TrendingUp, DollarSign, BarChart2, FileText,
   BookOpen, UserCheck, LogOut, ChevronLeft, ChevronRight,
-  Shield, HelpCircle
+  Shield, HelpCircle, ClipboardList
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -26,6 +26,7 @@ const navItems = [
   { href: '/dashboard/relatorios', label: 'Relatórios', icon: FileText },
   { href: '/dashboard/onboarding', label: 'Onboarding', icon: UserCheck },
   { href: '/dashboard/briefings', label: 'Briefings', icon: FileText },
+  { href: '/dashboard/briefings/respostas', label: 'Respostas', icon: ClipboardList },
   { href: '/dashboard/duvidas', label: 'Dúvidas', icon: HelpCircle },
   { href: '/dashboard/equipe', label: 'Equipe', icon: Shield },
 ]
