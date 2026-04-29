@@ -25,6 +25,7 @@ const navItems = [
   { href: '/dashboard/docs', label: 'Docs', icon: BookOpen },
   { href: '/dashboard/relatorios', label: 'Relatórios', icon: FileText },
   { href: '/dashboard/onboarding', label: 'Onboarding', icon: UserCheck },
+  { href: '/dashboard/briefings', label: 'Briefings', icon: FileText },
   { href: '/dashboard/duvidas', label: 'Dúvidas', icon: HelpCircle },
   { href: '/dashboard/equipe', label: 'Equipe', icon: Shield },
 ]
