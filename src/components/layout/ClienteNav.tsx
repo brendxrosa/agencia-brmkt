@@ -13,6 +13,7 @@ const navItems = [
   { href: '/cliente/mensagens', label: 'Mensagens', icon: MessageCircle },
   { href: '/cliente/docs', label: 'Documentos', icon: FileText },
   { href: '/cliente/suporte', label: 'Suporte', icon: HelpCircle },
+  { href: '/cliente/briefings', label: 'Briefings', icon: FileText },
 ]
 
 export default function ClienteNav({ profile }: { profile: any }) {
