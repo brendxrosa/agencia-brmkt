@@ -29,7 +29,7 @@ export default function NotificacoesSino() {
   const supabase = createClient()
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
   const [aberto, setAberto] = useState(false)
-  const [lidas, setLidas] = useState<Set<string>>(new Set())
+  const [lidas, setLidas] = useState<Set<string>>(new Set<string>())
   const ref = useRef<HTMLDivElement>(null)
 
   async function carregar() {
@@ -153,13 +153,17 @@ export default function NotificacoesSino() {
 
   const naoLidas = notificacoes.filter(n => !lidas.has(n.id)).length
 
-  function marcarLida(id: string) {
-    setLidas(prev => new Set([...prev, id]))
-  }
-
+ function marcarLida(id: string) {
+  setLidas(prev => {
+    const novo = new Set(Array.from(prev))
+    novo.add(id)
+    return novo
+  })
+}
+  
   function marcarTodasLidas() {
-    setLidas(new Set(notificacoes.map(n => n.id)))
-  }
+  setLidas(new Set(notificacoes.map(n => n.id)))
+}
 
   return (
     <div ref={ref} className="relative">
