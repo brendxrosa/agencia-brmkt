@@ -4,8 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Calendar, CheckSquare, MessageCircle, HelpCircle, LogOut, CalendarDays, FileText } from 'lucide-react'
-
+import { Calendar, CheckSquare, MessageCircle, HelpCircle, LogOut, CalendarDays, FileText, LayoutDashboard } from 'lucide-react'
 const navItems = [
   { href: '/cliente', label: 'Início', icon: LayoutDashboard },
   { href: '/cliente/calendario', label: 'Calendário', icon: Calendar },
