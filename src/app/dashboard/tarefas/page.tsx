@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type Tarefa } from '@/types'
 import { PRIORIDADE_CORES, cn, formatDate } from '@/lib/utils'
-import { Plus, X, CheckSquare, Square, AlertCircle, Clock } from 'lucide-react'
+import { Plus, X, CheckSquare, Square, AlertCircle, Clock, Eye } from 'lucide-react'
 
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   if (!open) return null
@@ -31,13 +31,14 @@ export default function TarefasPage() {
   const [form, setForm] = useState({
     titulo: '', descricao: '', cliente_id: '', responsavel_id: '',
     prioridade: 'media' as Tarefa['prioridade'],
-    prazo: '', status: 'pendente' as Tarefa['status']
+    prazo: '', status: 'pendente' as Tarefa['status'],
+    visivel_cliente: false
   })
 
   async function carregar() {
     const [{ data: t }, { data: c }, { data: e }] = await Promise.all([
-      supabase.from('tarefas').select('*, clientes(nome), profiles!responsavel_id(nome, avatar_url)').order('created_at', { ascending: false }),
-      supabase.from('clientes').select('id, nome').eq('status', 'ativo').order('nome'),
+      supabase.from('tarefas').select('*, clientes(nome, cor), profiles!responsavel_id(nome, avatar_url)').order('created_at', { ascending: false }),
+      supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome'),
       supabase.from('profiles').select('id, nome, avatar_url').in('role', ['admin', 'equipe'])
     ])
     setTarefas(t || [])
@@ -57,7 +58,8 @@ export default function TarefasPage() {
       responsavel_id: tarefa.responsavel_id || '',
       prioridade: tarefa.prioridade,
       prazo: tarefa.prazo || '',
-      status: tarefa.status
+      status: tarefa.status,
+      visivel_cliente: tarefa.visivel_cliente || false
     })
     setModalAberto(true)
   }
@@ -71,7 +73,7 @@ export default function TarefasPage() {
     }
     setModalAberto(false)
     setEditando(null)
-    setForm({ titulo: '', descricao: '', cliente_id: '', responsavel_id: '', prioridade: 'media', prazo: '', status: 'pendente' })
+    setForm({ titulo: '', descricao: '', cliente_id: '', responsavel_id: '', prioridade: 'media', prazo: '', status: 'pendente', visivel_cliente: false })
     carregar()
   }
 
@@ -95,9 +97,7 @@ export default function TarefasPage() {
 
   const pendentes = tarefas.filter(t => t.status === 'pendente').length
   const urgentes = tarefas.filter(t => t.prioridade === 'urgente' && t.status !== 'concluida').length
-
   const vencida = (prazo?: string) => prazo && new Date(prazo) < new Date()
-
   const getInitials = (nome: string) => nome?.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
 
   return (
@@ -107,7 +107,7 @@ export default function TarefasPage() {
           <h1 className="page-title">Tarefas</h1>
           <p className="text-gray-500 text-sm mt-1">{pendentes} pendentes · {urgentes} urgentes</p>
         </div>
-        <button onClick={() => { setEditando(null); setForm({ titulo: '', descricao: '', cliente_id: '', responsavel_id: '', prioridade: 'media', prazo: '', status: 'pendente' }); setModalAberto(true) }}
+        <button onClick={() => { setEditando(null); setForm({ titulo: '', descricao: '', cliente_id: '', responsavel_id: '', prioridade: 'media', prazo: '', status: 'pendente', visivel_cliente: false }); setModalAberto(true) }}
           className="btn-primary flex items-center gap-2">
           <Plus size={16} /> Nova tarefa
         </button>
@@ -135,7 +135,6 @@ export default function TarefasPage() {
         </div>
       </div>
 
-      {/* Lista */}
       {loading ? (
         <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="card h-16 animate-pulse bg-creme" />)}</div>
       ) : filtradas.length === 0 ? (
@@ -148,17 +147,27 @@ export default function TarefasPage() {
           {filtradas.map(tarefa => (
             <div key={tarefa.id} className={cn('card flex items-center gap-4 py-3 group transition-all', tarefa.status === 'concluida' && 'opacity-60')}>
               <button onClick={() => toggleStatus(tarefa)} className="flex-shrink-0 text-gray-400 hover:text-vinho transition-colors">
-                {tarefa.status === 'concluida'
-                  ? <CheckSquare size={20} className="text-emerald-500" />
-                  : <Square size={20} />}
+                {tarefa.status === 'concluida' ? <CheckSquare size={20} className="text-emerald-500" /> : <Square size={20} />}
               </button>
 
               <div className="flex-1 min-w-0">
-                <p className={cn('text-sm font-medium text-gray-800', tarefa.status === 'concluida' && 'line-through text-gray-400')}>
-                  {tarefa.titulo}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className={cn('text-sm font-medium text-gray-800', tarefa.status === 'concluida' && 'line-through text-gray-400')}>
+                    {tarefa.titulo}
+                  </p>
+                  {tarefa.visivel_cliente && (
+                    <span className="badge bg-blue-100 text-blue-600 text-xs flex items-center gap-1">
+                      <Eye size={10} /> Cliente
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  {tarefa.clientes?.nome && <span className="text-xs text-gray-400">{tarefa.clientes.nome}</span>}
+                  {tarefa.clientes?.nome && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tarefa.clientes.cor }} />
+                      <span className="text-xs text-gray-400">{tarefa.clientes.nome}</span>
+                    </div>
+                  )}
                   {tarefa.prazo && (
                     <div className={cn('flex items-center gap-1 text-xs', vencida(tarefa.prazo) && tarefa.status !== 'concluida' ? 'text-red-500' : 'text-gray-400')}>
                       <Clock size={11} /> {formatDate(tarefa.prazo)}
@@ -169,7 +178,6 @@ export default function TarefasPage() {
                 </div>
               </div>
 
-              {/* Responsável */}
               {tarefa.profiles && (
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {tarefa.profiles.avatar_url ? (
@@ -199,7 +207,6 @@ export default function TarefasPage() {
         </div>
       )}
 
-      {/* Modal */}
       <Modal open={modalAberto} onClose={() => { setModalAberto(false); setEditando(null) }}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -232,7 +239,6 @@ export default function TarefasPage() {
               </div>
             </div>
 
-            {/* Responsável */}
             <div>
               <label className="label">Responsável</label>
               <div className="flex flex-wrap gap-2">
@@ -285,6 +291,19 @@ export default function TarefasPage() {
                 </div>
               </div>
             )}
+
+            {/* Visível para cliente */}
+            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+              <input type="checkbox" id="visivel_cliente" checked={form.visivel_cliente}
+                onChange={e => setForm(f => ({ ...f, visivel_cliente: e.target.checked }))}
+                className="rounded" />
+              <div>
+                <label htmlFor="visivel_cliente" className="text-sm font-medium text-blue-700 cursor-pointer flex items-center gap-1.5">
+                  <Eye size={14} /> Visível para o cliente
+                </label>
+                <p className="text-xs text-blue-600 mt-0.5">O cliente verá esta tarefa no portal dele</p>
+              </div>
+            </div>
 
             <div className="flex gap-3 pt-2">
               <button onClick={() => { setModalAberto(false); setEditando(null) }} className="btn-secondary flex-1">Cancelar</button>
