@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { Calendar, CheckSquare, MessageCircle, HelpCircle, LogOut, CalendarDays, FileText } from 'lucide-react'
 
 const navItems = [
+  { href: '/cliente', label: 'Início', icon: LayoutDashboard },
   { href: '/cliente/calendario', label: 'Calendário', icon: Calendar },
   { href: '/cliente/aprovacoes', label: 'Aprovações', icon: CheckSquare },
   { href: '/cliente/agenda', label: 'Agenda', icon: CalendarDays },
