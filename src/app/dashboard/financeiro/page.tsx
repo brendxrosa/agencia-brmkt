@@ -32,17 +32,23 @@ export default function FinanceiroPage() {
     vencimento: '', status: 'pendente' as Pagamento['status'], observacoes: ''
   })
 
-  async function carregar() {
-    const [{ data: p }, { data: c }] = await Promise.all([
-      supabase.from('pagamentos').select('*, clientes(nome, cor)').order('vencimento', { ascending: false }),
-      supabase.from('clientes').select('id, nome, valor_mensal').eq('status', 'ativo').order('nome')
-    ])
-    setPagamentos(p || [])
+  async function carregarClientes() {
+    const { data: c } = await supabase.from('clientes').select('id, nome, valor_mensal').order('nome')
     setClientes(c || [])
+  }
+
+  async function carregar() {
+    const { data: p } = await supabase.from('pagamentos').select('*, clientes(nome, cor)').order('vencimento', { ascending: false })
+    setPagamentos(p || [])
     setLoading(false)
   }
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar(); carregarClientes() }, [])
+
+  function abrirModal() {
+    if (clientes.length === 0) carregarClientes()
+    setModalAberto(true)
+  }
 
   async function salvar() {
     if (!form.cliente_id || !form.valor || !form.vencimento) return alert('Cliente, valor e vencimento são obrigatórios!')
@@ -93,7 +99,7 @@ export default function FinanceiroPage() {
           <button onClick={gerarPagamentosMes} className="btn-secondary text-sm">
             Gerar cobranças do mês
           </button>
-          <button onClick={() => setModalAberto(true)} className="btn-primary flex items-center gap-2">
+          <button onClick={abrirModal} className="btn-primary flex items-center gap-2">
             <Plus size={16} /> Novo pagamento
           </button>
         </div>
