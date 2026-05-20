@@ -35,6 +35,61 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   )
 }
 
+function CamposEvento({ f, set, clientes }: { f: typeof formVazio; set: (k: string, v: any) => void; clientes: any[] }) {
+  return (
+    <div className="space-y-4">
+      <div><label className="label">Título *</label>
+        <input className="input" value={f.titulo} onChange={e => set('titulo', e.target.value)} /></div>
+      <div>
+        <label className="label">Tipo</label>
+        <div className="flex gap-2 flex-wrap">
+          {Object.entries(TIPO_CONFIG).map(([k, v]) => (
+            <button key={k} onClick={() => set('tipo', k)}
+              className={cn('px-3 py-1.5 rounded-xl text-sm font-medium transition-all', f.tipo === k ? 'text-white' : 'bg-creme text-gray-600')}
+              style={f.tipo === k ? { backgroundColor: v.cor } : {}}>{v.label}</button>
+          ))}
+        </div>
+      </div>
+      <div><label className="label">Cliente</label>
+        <select className="input" value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
+          <option value="">Sem cliente</option>
+          {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+        </select>
+      </div>
+      <div className="flex items-center gap-3">
+        <input type="checkbox" id="dia_todo" checked={f.dia_todo} onChange={e => set('dia_todo', e.target.checked)} className="rounded" />
+        <label htmlFor="dia_todo" className="text-sm text-gray-700">Dia todo</label>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div><label className="label">Data início *</label>
+          <input className="input" type="date" value={f.data_inicio} onChange={e => set('data_inicio', e.target.value)} /></div>
+        {!f.dia_todo && <div><label className="label">Hora início</label>
+          <input className="input" type="time" value={f.hora_inicio} onChange={e => set('hora_inicio', e.target.value)} /></div>}
+      </div>
+      {!f.dia_todo && (
+        <div className="grid grid-cols-2 gap-4">
+          <div><label className="label">Data fim</label>
+            <input className="input" type="date" value={f.data_fim} onChange={e => set('data_fim', e.target.value)} /></div>
+          <div><label className="label">Hora fim</label>
+            <input className="input" type="time" value={f.hora_fim} onChange={e => set('hora_fim', e.target.value)} /></div>
+        </div>
+      )}
+      <div><label className="label flex items-center gap-1.5"><MapPin size={13} /> Local (presencial)</label>
+        <input className="input" value={f.local} onChange={e => set('local', e.target.value)} placeholder="Ex: Rua das Flores, 123" /></div>
+      <div><label className="label flex items-center gap-1.5"><Link size={13} /> Link (online)</label>
+        <input className="input" value={f.link_online} onChange={e => set('link_online', e.target.value)} placeholder="https://meet.google.com/..." /></div>
+      <div><label className="label">Descrição</label>
+        <textarea className="input resize-none" rows={2} value={f.descricao} onChange={e => set('descricao', e.target.value)} /></div>
+      <div><label className="label">Observações</label>
+        <textarea className="input resize-none" rows={2} value={f.observacoes} onChange={e => set('observacoes', e.target.value)} /></div>
+      <div className="flex items-center gap-3">
+        <input type="checkbox" id="visivel" checked={f.visivel_cliente} onChange={e => set('visivel_cliente', e.target.checked)} className="rounded" />
+        <label htmlFor="visivel" className="text-sm text-gray-700">Visível para o cliente</label>
+      </div>
+    </div>
+  )
+}
+
 function AgendaContent() {
   const supabase = createClient()
   const searchParams = useSearchParams()
@@ -223,59 +278,6 @@ function AgendaContent() {
   const eventosNoDia = (dia: Date) => eventos.filter(e => isSameDay(parseISO(e.data_inicio), dia))
   const eventosDiaSelecionado = diaSelecionado ? eventos.filter(e => isSameDay(parseISO(e.data_inicio), diaSelecionado)) : []
 
-  const CamposEvento = ({ f, set }: { f: typeof formVazio; set: (k: string, v: any) => void }) => (
-    <div className="space-y-4">
-      <div><label className="label">Título *</label>
-        <input className="input" value={f.titulo} onChange={e => set('titulo', e.target.value)} /></div>
-      <div>
-        <label className="label">Tipo</label>
-        <div className="flex gap-2 flex-wrap">
-          {Object.entries(TIPO_CONFIG).map(([k, v]) => (
-            <button key={k} onClick={() => set('tipo', k)}
-              className={cn('px-3 py-1.5 rounded-xl text-sm font-medium transition-all', f.tipo === k ? 'text-white' : 'bg-creme text-gray-600')}
-              style={f.tipo === k ? { backgroundColor: v.cor } : {}}>{v.label}</button>
-          ))}
-        </div>
-      </div>
-      <div><label className="label">Cliente</label>
-        <select className="input" value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
-          <option value="">Sem cliente</option>
-          {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-        </select>
-      </div>
-      <div className="flex items-center gap-3">
-        <input type="checkbox" id="dia_todo" checked={f.dia_todo} onChange={e => set('dia_todo', e.target.checked)} className="rounded" />
-        <label htmlFor="dia_todo" className="text-sm text-gray-700">Dia todo</label>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div><label className="label">Data início *</label>
-          <input className="input" type="date" value={f.data_inicio} onChange={e => set('data_inicio', e.target.value)} /></div>
-        {!f.dia_todo && <div><label className="label">Hora início</label>
-          <input className="input" type="time" value={f.hora_inicio} onChange={e => set('hora_inicio', e.target.value)} /></div>}
-      </div>
-      {!f.dia_todo && (
-        <div className="grid grid-cols-2 gap-4">
-          <div><label className="label">Data fim</label>
-            <input className="input" type="date" value={f.data_fim} onChange={e => set('data_fim', e.target.value)} /></div>
-          <div><label className="label">Hora fim</label>
-            <input className="input" type="time" value={f.hora_fim} onChange={e => set('hora_fim', e.target.value)} /></div>
-        </div>
-      )}
-      <div><label className="label flex items-center gap-1.5"><MapPin size={13} /> Local (presencial)</label>
-        <input className="input" value={f.local} onChange={e => set('local', e.target.value)} placeholder="Ex: Rua das Flores, 123" /></div>
-      <div><label className="label flex items-center gap-1.5"><Link size={13} /> Link (online)</label>
-        <input className="input" value={f.link_online} onChange={e => set('link_online', e.target.value)} placeholder="https://meet.google.com/..." /></div>
-      <div><label className="label">Descrição</label>
-        <textarea className="input resize-none" rows={2} value={f.descricao} onChange={e => set('descricao', e.target.value)} /></div>
-      <div><label className="label">Observações</label>
-        <textarea className="input resize-none" rows={2} value={f.observacoes} onChange={e => set('observacoes', e.target.value)} /></div>
-      <div className="flex items-center gap-3">
-        <input type="checkbox" id="visivel" checked={f.visivel_cliente} onChange={e => set('visivel_cliente', e.target.checked)} className="rounded" />
-        <label htmlFor="visivel" className="text-sm text-gray-700">Visível para o cliente</label>
-      </div>
-    </div>
-  )
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -437,7 +439,7 @@ function AgendaContent() {
               </div>
             </div>
             {modoEditar ? (
-              <CamposEvento f={formEditar} set={(k, v) => setFormEditar(f => ({ ...f, [k]: v }))} />
+              <CamposEvento f={formEditar} set={(k, v) => setFormEditar(f => ({ ...f, [k]: v }))} clientes={clientes} />
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -510,7 +512,7 @@ function AgendaContent() {
             <h2 className="font-display text-xl font-semibold text-vinho">Novo evento</h2>
             <button onClick={() => setModalAberto(false)} className="btn-ghost p-2"><X size={18} /></button>
           </div>
-          <CamposEvento f={form} set={(k, v) => setForm(f => ({ ...f, [k]: v }))} />
+          <CamposEvento f={form} set={(k, v) => setForm(f => ({ ...f, [k]: v }))} clientes={clientes} />
           <div className="flex gap-3 pt-4">
             <button onClick={() => setModalAberto(false)} className="btn-secondary flex-1">Cancelar</button>
             <button onClick={salvar} disabled={salvando} className="btn-primary flex-1 justify-center">
