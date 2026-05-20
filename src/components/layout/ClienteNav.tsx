@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { Calendar, CheckSquare, MessageCircle, HelpCircle, LogOut, CalendarDays, FileText, LayoutDashboard } from 'lucide-react'
-const navItems = [
+import { Calendar, CheckSquare, MessageCircle, HelpCircle, LogOut, CalendarDays, FileText, LayoutDashboard, User } from 'lucide-react'
+  const navItems = [
   { href: '/cliente', label: 'Início', icon: LayoutDashboard },
   { href: '/cliente/calendario', label: 'Calendário', icon: Calendar },
   { href: '/cliente/aprovacoes', label: 'Aprovações', icon: CheckSquare },
@@ -14,6 +14,7 @@ const navItems = [
   { href: '/cliente/docs', label: 'Documentos', icon: FileText },
   { href: '/cliente/suporte', label: 'Suporte', icon: HelpCircle },
   { href: '/cliente/briefings', label: 'Briefings', icon: FileText },
+  { href: '/cliente/perfil', label: 'Perfil', icon: User },
 ]
 
 export default function ClienteNav({ profile }: { profile: any }) {
