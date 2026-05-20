@@ -5,7 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Calendar, CheckSquare, MessageCircle, HelpCircle, LogOut, CalendarDays, FileText, LayoutDashboard, User } from 'lucide-react'
-  const navItems = [
+
+const navItems = [
   { href: '/cliente', label: 'Início', icon: LayoutDashboard },
   { href: '/cliente/calendario', label: 'Calendário', icon: Calendar },
   { href: '/cliente/aprovacoes', label: 'Aprovações', icon: CheckSquare },
@@ -47,7 +48,7 @@ export default function ClienteNav({ profile }: { profile: any }) {
           </div>
 
           <nav className="flex items-center gap-0.5">
-            {navItems.map(({ href, label, icon: Icon }) => 
+            {navItems.map(({ href, label, icon: Icon }) => {
               const active = pathname === href
               return (
                 <Link key={href} href={href}
