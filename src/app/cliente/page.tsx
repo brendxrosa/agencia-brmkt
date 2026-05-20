@@ -2,62 +2,95 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { User, Mail, Phone, Instagram, Building, Eye, EyeOff, Save, KeyRound } from 'lucide-react'
+import { cn, formatDate } from '@/lib/utils'
+import { CheckCircle, Clock, MessageCircle, FileText, Calendar, AlertCircle, Square, PauseCircle, XCircle } from 'lucide-react'
+import { format, parseISO, isToday, isTomorrow, differenceInDays } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import Link from 'next/link'
 
-export default function ClientePerfilPage() {
+export default function ClienteDashboardPage() {
   const supabase = createClient()
-  const [profile, setProfile] = useState<any>(null)
+  const [clienteId, setClienteId] = useState<string | null>(null)
   const [cliente, setCliente] = useState<any>(null)
+  const [posts, setPosts] = useState<any[]>([])
+  const [mensagens, setMensagens] = useState<any[]>([])
+  const [eventos, setEventos] = useState<any[]>([])
+  const [tarefas, setTarefas] = useState<any[]>([])
+  const [briefings, setBriefings] = useState<any[]>([])
+  const [respostas, setRespostas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [salvando, setSalvando] = useState(false)
-  const [sucesso, setSucesso] = useState('')
-  const [erro, setErro] = useState('')
-  const [modalSenha, setModalSenha] = useState(false)
-  const [senhaAtual, setSenhaAtual] = useState('')
-  const [novaSenha, setNovaSenha] = useState('')
-  const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [userName, setUserName] = useState('')
+  const [statusCliente, setStatusCliente] = useState<string>('ativo')
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setLoading(false); return }
 
-      const { data: p } = await supabase.from('profiles')
-        .select('*, clientes(*)').eq('id', user.id).single()
+        const { data: profile } = await supabase
+          .from('profiles').select('cliente_id, nome').eq('id', user.id).single()
 
-      setProfile(p)
-      setCliente(p?.clientes || null)
-      setLoading(false)
+        if (!profile?.cliente_id) { setLoading(false); return }
+
+        setClienteId(profile.cliente_id)
+        setUserName(profile.nome || '')
+
+        // Busca cliente primeiro pra checar status
+        const { data: c } = await supabase.from('clientes').select('*').eq('id', profile.cliente_id).single()
+        setCliente(c || null)
+        setStatusCliente(c?.status || 'ativo')
+
+        // Se pausado ou encerrado, não carrega o resto
+        if (c?.status !== 'ativo') { setLoading(false); return }
+
+        const [{ data: p }, { data: m }, { data: e }, { data: t }, { data: b }, { data: r }] = await Promise.all([
+          supabase.from('posts').select('id, titulo, tipo, status_interno')
+            .eq('cliente_id', profile.cliente_id)
+            .eq('status_interno', 'aguardando_cliente')
+            .order('created_at', { ascending: false }),
+          supabase.from('mensagens').select('id, conteudo, created_at')
+            .eq('cliente_id', profile.cliente_id)
+            .eq('lida', false)
+            .neq('autor_role', 'cliente'),
+          supabase.from('eventos').select('id, titulo, data_inicio, dia_todo, link_online')
+            .eq('cliente_id', profile.cliente_id)
+            .eq('visivel_cliente', true)
+            .gte('data_inicio', new Date().toISOString())
+            .order('data_inicio').limit(3),
+          supabase.from('tarefas').select('id, titulo, prazo, prioridade, status')
+            .eq('cliente_id', profile.cliente_id)
+            .eq('visivel_cliente', true)
+            .neq('status', 'concluida')
+            .order('prazo'),
+          supabase.from('briefings').select('id, nome').eq('ativo', true),
+          supabase.from('briefing_respostas').select('briefing_id, concluido')
+            .eq('cliente_id', profile.cliente_id)
+        ])
+
+        setPosts(p || [])
+        setMensagens(m || [])
+        setEventos(e || [])
+        setTarefas(t || [])
+        setBriefings(b || [])
+        setRespostas(r || [])
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
     }
     init()
   }, [])
 
-  async function salvarNome() {
-    if (!profile) return
-    setSalvando(true)
-    setErro('')
-    const { error } = await supabase.from('profiles')
-      .update({ nome: profile.nome }).eq('id', profile.id)
-    setSalvando(false)
-    if (error) setErro('Erro ao salvar')
-    else { setSucesso('Nome atualizado!'); setTimeout(() => setSucesso(''), 3000) }
-  }
+  const briefingsPendentes = briefings.filter(b => {
+    const resposta = respostas.find(r => r.briefing_id === b.id)
+    return !resposta || !resposta.concluido
+  })
 
-  async function alterarSenha() {
-    if (!novaSenha || novaSenha.length < 6) return setErro('Senha deve ter no mínimo 6 caracteres')
-    setSalvando(true)
-    setErro('')
-    const { error } = await supabase.auth.updateUser({ password: novaSenha })
-    setSalvando(false)
-    if (error) setErro('Erro ao alterar senha: ' + error.message)
-    else {
-      setSucesso('Senha alterada com sucesso!')
-      setModalSenha(false)
-      setNovaSenha('')
-      setSenhaAtual('')
-      setTimeout(() => setSucesso(''), 3000)
-    }
-  }
+  const hora = new Date().getHours()
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+  const primeiroNome = userName?.split(' ')[0] || ''
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -65,121 +98,183 @@ export default function ClientePerfilPage() {
     </div>
   )
 
-  return (
-    <div className="space-y-5 max-w-xl">
+  // Status pausado
+  if (statusCliente === 'pausado') return (
+    <div className="flex flex-col items-center justify-center h-96 text-center space-y-4">
+      <div className="w-16 h-16 bg-yellow-100 rounded-2xl flex items-center justify-center">
+        <PauseCircle size={32} className="text-yellow-500" />
+      </div>
       <div>
-        <h1 className="page-title">Meu Perfil</h1>
-        <p className="text-gray-500 text-sm mt-1">Informações da sua conta</p>
+        <h2 className="font-display text-xl font-semibold text-gray-800">Conta pausada</h2>
+        <p className="text-gray-500 text-sm mt-2 max-w-sm">
+          Sua conta está temporariamente pausada. Entre em contato com a agência para mais informações.
+        </p>
+      </div>
+      <Link href="/cliente/mensagens" className="btn-primary flex items-center gap-2">
+        <MessageCircle size={16} /> Falar com a agência
+      </Link>
+    </div>
+  )
+
+  // Status encerrado
+  if (statusCliente === 'encerrado') return (
+    <div className="flex flex-col items-center justify-center h-96 text-center space-y-4">
+      <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
+        <XCircle size={32} className="text-gray-400" />
+      </div>
+      <div>
+        <h2 className="font-display text-xl font-semibold text-gray-800">Contrato encerrado</h2>
+        <p className="text-gray-500 text-sm mt-2 max-w-sm">
+          Seu contrato com a agência foi encerrado. Caso queira retomar a parceria, entre em contato conosco.
+        </p>
+      </div>
+      <Link href="/cliente/mensagens" className="btn-secondary flex items-center gap-2">
+        <MessageCircle size={16} /> Entrar em contato
+      </Link>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="page-title">{saudacao}, {primeiroNome}! 👋</h1>
+        <p className="text-gray-500 text-sm mt-1 capitalize">
+          {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+        </p>
       </div>
 
-      {sucesso && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
-          ✅ {sucesso}
+      {/* Alertas */}
+      {(posts.length > 0 || mensagens.length > 0 || briefingsPendentes.length > 0) && (
+        <div className="space-y-3">
+          {posts.length > 0 && (
+            <Link href="/cliente/aprovacoes" className="card border-l-4 border-l-orange-400 bg-orange-50/50 flex items-center gap-3 hover:shadow-card-hover transition-all">
+              <AlertCircle size={20} className="text-orange-500 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-orange-700">{posts.length} post(s) aguardando sua aprovação</p>
+                <p className="text-xs text-orange-600">Clique para revisar e aprovar</p>
+              </div>
+              <span className="w-7 h-7 bg-orange-500 rounded-full text-white text-sm font-bold flex items-center justify-center flex-shrink-0">{posts.length}</span>
+            </Link>
+          )}
+          {mensagens.length > 0 && (
+            <Link href="/cliente/mensagens" className="card border-l-4 border-l-vinho bg-rosa-pale/20 flex items-center gap-3 hover:shadow-card-hover transition-all">
+              <MessageCircle size={20} className="text-vinho flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-vinho">{mensagens.length} mensagem(ns) não lida(s)</p>
+                <p className="text-xs text-gray-500">Da equipe Agência BR MKT</p>
+              </div>
+              <span className="w-7 h-7 bg-vinho rounded-full text-white text-sm font-bold flex items-center justify-center flex-shrink-0">{mensagens.length}</span>
+            </Link>
+          )}
+          {briefingsPendentes.length > 0 && (
+            <Link href="/cliente/briefings" className="card border-l-4 border-l-purple-400 bg-purple-50/30 flex items-center gap-3 hover:shadow-card-hover transition-all">
+              <FileText size={20} className="text-purple-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-purple-700">{briefingsPendentes.length} briefing(s) para preencher</p>
+                <p className="text-xs text-purple-600">Ajuda a agência a conhecer melhor sua marca</p>
+              </div>
+            </Link>
+          )}
         </div>
       )}
-      {erro && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          ❌ {erro}
+
+      {posts.length === 0 && mensagens.length === 0 && briefingsPendentes.length === 0 && (
+        <div className="card bg-emerald-50 border border-emerald-100 flex items-center gap-3">
+          <CheckCircle size={20} className="text-emerald-500 flex-shrink-0" />
+          <p className="text-sm text-emerald-700">Tudo em dia! Nenhuma pendência no momento. 🎉</p>
         </div>
       )}
 
-      {/* Dados do perfil */}
-      <div className="card space-y-4">
-        <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-display font-bold text-2xl flex-shrink-0"
-            style={{ backgroundColor: cliente?.cor || '#6B0F2A' }}>
-            {profile?.nome?.charAt(0) || 'C'}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="section-title text-base">Próximos eventos</h3>
+            <Link href="/cliente/agenda" className="text-xs text-vinho hover:underline">Ver agenda</Link>
           </div>
-          <div>
-            <p className="font-semibold text-gray-800">{profile?.nome}</p>
-            <p className="text-sm text-gray-400">{profile?.email}</p>
-            <span className="badge bg-creme text-gray-600 text-xs mt-1">Cliente</span>
-          </div>
+          {eventos.length === 0 ? (
+            <div className="text-center py-8">
+              <Calendar size={28} className="mx-auto mb-2 text-gray-200" />
+              <p className="text-sm text-gray-400">Nenhum evento próximo</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {eventos.map(evento => {
+                const data = parseISO(evento.data_inicio)
+                const ehHoje = isToday(data)
+                const ehAmanha = isTomorrow(data)
+                const dias = differenceInDays(data, new Date())
+                return (
+                  <div key={evento.id} className={cn('flex gap-3 p-3 rounded-xl', ehHoje ? 'bg-rosa-pale/30' : 'bg-creme/50')}>
+                    <div className={cn('w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 text-white', ehHoje ? 'bg-vinho' : 'bg-gray-400')}>
+                      <span className="text-xs font-medium">{format(data, 'MMM', { locale: ptBR })}</span>
+                      <span className="text-lg font-bold leading-none">{format(data, 'd')}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{evento.titulo}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {ehHoje ? '🔴 Hoje' : ehAmanha ? '🟡 Amanhã' : `em ${dias} dias`}
+                        {!evento.dia_todo && ` · ${format(data, 'HH:mm')}`}
+                      </p>
+                      {evento.link_online && (
+                        <a href={evento.link_online} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-vinho hover:underline">🔗 Entrar na reunião</a>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        <div>
-          <label className="label flex items-center gap-1.5">
-            <User size={13} /> Nome de exibição
-          </label>
-          <div className="flex gap-2">
-            <input className="input flex-1" value={profile?.nome || ''}
-              onChange={e => setProfile((p: any) => ({ ...p, nome: e.target.value }))} />
-            <button onClick={salvarNome} disabled={salvando}
-              className="btn-primary px-4 flex items-center gap-1.5">
-              <Save size={14} /> {salvando ? '...' : 'Salvar'}
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <label className="label flex items-center gap-1.5">
-            <Mail size={13} /> E-mail
-          </label>
-          <input className="input bg-gray-50 text-gray-400 cursor-not-allowed" value={profile?.email || ''} disabled />
-          <p className="text-xs text-gray-400 mt-1">Para alterar o e-mail, entre em contato com a agência</p>
+        <div className="card">
+          <h3 className="section-title text-base mb-4">Minhas tarefas</h3>
+          {tarefas.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle size={28} className="mx-auto mb-2 text-gray-200" />
+              <p className="text-sm text-gray-400">Nenhuma tarefa pendente 🎉</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tarefas.map(tarefa => (
+                <div key={tarefa.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                  <Square size={16} className="text-gray-300 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{tarefa.titulo}</p>
+                    {tarefa.prazo && <p className="text-xs text-gray-400">📅 {formatDate(tarefa.prazo)}</p>}
+                  </div>
+                  <span className={cn('badge text-xs flex-shrink-0', {
+                    'bg-red-100 text-red-700': tarefa.prioridade === 'urgente',
+                    'bg-orange-100 text-orange-700': tarefa.prioridade === 'alta',
+                    'bg-blue-100 text-blue-700': tarefa.prioridade === 'media',
+                    'bg-gray-100 text-gray-600': tarefa.prioridade === 'baixa',
+                  })}>{tarefa.prioridade}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Dados do cliente */}
       {cliente && (
-        <div className="card space-y-3">
-          <h3 className="section-title text-base">Dados da conta</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {[
-              { icon: Building, label: 'Empresa', valor: cliente.empresa },
-              { icon: Phone, label: 'Telefone', valor: cliente.telefone },
-              { icon: Instagram, label: 'Instagram', valor: cliente.instagram },
-              { icon: Mail, label: 'E-mail comercial', valor: cliente.email },
-            ].filter(i => i.valor).map(({ icon: Icon, label, valor }) => (
-              <div key={label}>
-                <p className="text-xs text-gray-400 flex items-center gap-1 mb-0.5">
-                  <Icon size={11} /> {label}
-                </p>
-                <p className="font-medium text-gray-800">{valor}</p>
-              </div>
-            ))}
+        <div className="card border-l-4 border-l-vinho">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h3 className="section-title text-base mb-1">Meu plano</h3>
+              <p className="text-sm text-gray-600">{cliente.plano} · R$ {cliente.valor_mensal?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</p>
+              <p className="text-xs text-gray-400 mt-0.5">Vencimento todo dia {cliente.dia_vencimento}</p>
+            </div>
+            <div className="flex gap-3 flex-wrap">
+              <Link href="/cliente/docs" className="btn-secondary text-sm flex items-center gap-2">
+                <FileText size={14} /> Ver documentos
+              </Link>
+              <Link href="/cliente/mensagens" className="btn-primary text-sm flex items-center gap-2">
+                <MessageCircle size={14} /> Falar com a agência
+              </Link>
+            </div>
           </div>
-          <div className="pt-3 border-t border-gray-100">
-            <p className="text-xs text-gray-400">Plano</p>
-            <p className="text-sm font-medium text-gray-800">{cliente.plano} · R$ {cliente.valor_mensal?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</p>
-          </div>
-          <p className="text-xs text-gray-400">Para atualizar seus dados cadastrais, entre em contato com a agência.</p>
         </div>
       )}
-
-      {/* Segurança */}
-      <div className="card">
-        <h3 className="section-title text-base mb-4">Segurança</h3>
-        {!modalSenha ? (
-          <button onClick={() => setModalSenha(true)}
-            className="btn-secondary flex items-center gap-2">
-            <KeyRound size={16} /> Alterar minha senha
-          </button>
-        ) : (
-          <div className="space-y-3">
-            <div>
-              <label className="label">Nova senha *</label>
-              <div className="relative">
-                <input className="input pr-10" type={mostrarSenha ? 'text' : 'password'}
-                  value={novaSenha} onChange={e => setNovaSenha(e.target.value)}
-                  placeholder="Mínimo 6 caracteres" />
-                <button onClick={() => setMostrarSenha(!mostrarSenha)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => { setModalSenha(false); setNovaSenha('') }}
-                className="btn-ghost flex-1">Cancelar</button>
-              <button onClick={alterarSenha} disabled={salvando}
-                className="btn-primary flex-1 justify-center">
-                {salvando ? 'Salvando...' : 'Alterar senha'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
