@@ -11,8 +11,6 @@ export async function GET(request: Request) {
   }
 
   try {
-    const redirectUri = `${appUrl}/api/auth/google/callback`
-
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -20,46 +18,57 @@ export async function GET(request: Request) {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: redirectUri,
+        redirect_uri: `${appUrl}/api/auth/google/callback`,
         grant_type: 'authorization_code',
       }),
     })
 
     const tokens = await tokenRes.json()
-
     if (!tokens.access_token) {
       return NextResponse.redirect(`${appUrl}/dashboard/agenda?erro=token_invalido`)
     }
 
-    // Usa service role pra salvar sem precisar de sessão
+    // Pega email do Google
+    const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` }
+    })
+    const userInfo = await userInfoRes.json()
+
+    // Salva com service role
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Pega o email do Google pra identificar o usuário
-    const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${tokens.access_token}` }
-    })
-    const userInfo = await userInfoRes.json()
-
+    // Tenta pelo email do Google
+    let updated = false
     if (userInfo.email) {
       const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('email', userInfo.email)
-        .single()
-
+        .from('profiles').select('id').eq('email', userInfo.email).single()
+      
       if (profile) {
-        await supabaseAdmin.from('profiles').update({
+        const { error } = await supabaseAdmin.from('profiles').update({
           google_access_token: tokens.access_token,
           google_refresh_token: tokens.refresh_token || null,
           google_token_expiry: tokens.expires_in
             ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
             : null,
         }).eq('id', profile.id)
+        
+        if (!error) updated = true
       }
+    }
+
+    // Se não achou pelo email, salva em todos os admins
+    if (!updated) {
+      await supabaseAdmin.from('profiles').update({
+        google_access_token: tokens.access_token,
+        google_refresh_token: tokens.refresh_token || null,
+        google_token_expiry: tokens.expires_in
+          ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+          : null,
+      }).eq('role', 'admin')
     }
 
     return NextResponse.redirect(`${appUrl}/dashboard/agenda?google=conectado`)
