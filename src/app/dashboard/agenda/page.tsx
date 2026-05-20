@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Plus, X, ChevronLeft, ChevronRight, Clock, Users, Camera, Package, DollarSign, Calendar, MapPin, Link, Edit2, Save, CheckCircle, XCircle, RefreshCw, ExternalLink } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -35,7 +35,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   )
 }
 
-export default function AgendaPage() {
+function AgendaContent() {
   const supabase = createClient()
   const searchParams = useSearchParams()
   const [eventos, setEventos] = useState<any[]>([])
@@ -56,12 +56,13 @@ export default function AgendaPage() {
   async function carregar() {
     const inicio = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const fim = format(endOfMonth(mesSelecionado), 'yyyy-MM-dd')
+    const { data: { user } } = await supabase.auth.getUser()
 
     const [{ data: e }, { data: c }, { data: profile }] = await Promise.all([
       supabase.from('eventos').select('*, clientes(nome, cor)')
         .gte('data_inicio', inicio).lte('data_inicio', fim + 'T23:59:59').order('data_inicio'),
       supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome'),
-      supabase.from('profiles').select('google_access_token').eq('id', (await supabase.auth.getUser()).data.user?.id || '').single()
+      supabase.from('profiles').select('google_access_token').eq('id', user?.id || '').single()
     ])
 
     setEventos(e || [])
@@ -103,7 +104,6 @@ export default function AgendaPage() {
   async function salvar() {
     if (!form.titulo || !form.data_inicio) return alert('Título e data são obrigatórios!')
     setSalvando(true)
-
     const data_inicio = form.dia_todo ? `${form.data_inicio}T00:00:00` : `${form.data_inicio}T${form.hora_inicio}:00`
     const data_fim = form.data_fim
       ? (form.dia_todo ? `${form.data_fim}T23:59:59` : `${form.data_fim}T${form.hora_fim}:00`)
@@ -117,7 +117,6 @@ export default function AgendaPage() {
       observacoes: form.observacoes || null, status: 'confirmado'
     }).select().single()
 
-    // Sincroniza com Google Calendar se conectado
     if (googleConectado && novoEvento) {
       await fetch('/api/google-calendar', {
         method: 'POST',
@@ -135,7 +134,6 @@ export default function AgendaPage() {
   async function salvarEdicao() {
     if (!eventoDetalhes?.id) return
     setSalvando(true)
-
     const data_inicio = formEditar.dia_todo
       ? `${formEditar.data_inicio}T00:00:00`
       : `${formEditar.data_inicio}T${formEditar.hora_inicio}:00`
@@ -158,10 +156,7 @@ export default function AgendaPage() {
   }
 
   async function sincronizarComGoogle() {
-    if (!googleConectado) {
-      window.location.href = '/api/auth/google'
-      return
-    }
+    if (!googleConectado) { window.location.href = '/api/auth/google'; return }
     setSincronizando(true)
     try {
       const res = await fetch('/api/google-calendar', {
@@ -170,11 +165,9 @@ export default function AgendaPage() {
         body: JSON.stringify({ action: 'listar' })
       })
       const data = await res.json()
-      setSucesso(`${data.eventos?.length || 0} evento(s) encontrado(s) no Google Calendar!`)
+      setSucesso(`${data.eventos?.length || 0} evento(s) no Google Calendar!`)
       setTimeout(() => setSucesso(''), 4000)
-    } catch {
-      setSucesso('Erro ao sincronizar')
-    }
+    } catch { setSucesso('Erro ao sincronizar') }
     setSincronizando(false)
   }
 
@@ -186,13 +179,11 @@ export default function AgendaPage() {
       body: JSON.stringify({ action: 'criar', evento })
     })
     const data = await res.json()
-    if (data.success) {
-      setSucesso('Evento adicionado ao Google Calendar! ✅')
-      carregar()
-    } else setSucesso('Erro: ' + data.error)
+    setSucesso(data.success ? 'Adicionado ao Google Calendar! ✅' : 'Erro: ' + data.error)
     setTimeout(() => setSucesso(''), 4000)
     setSincronizando(false)
     setEventoDetalhes(null)
+    if (data.success) carregar()
   }
 
   async function aprovarEvento(id: string, status: 'confirmado' | 'cancelado') {
@@ -304,7 +295,6 @@ export default function AgendaPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Calendário */}
         <div className="lg:col-span-2 card">
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => setMesSelecionado(m => subMonths(m, 1))} className="btn-ghost p-2"><ChevronLeft size={18} /></button>
@@ -313,13 +303,11 @@ export default function AgendaPage() {
             </h2>
             <button onClick={() => setMesSelecionado(m => addMonths(m, 1))} className="btn-ghost p-2"><ChevronRight size={18} /></button>
           </div>
-
           <div className="grid grid-cols-7 mb-2">
             {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => (
               <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
             ))}
           </div>
-
           <div className="grid grid-cols-7 gap-1">
             {diasVazios.map((_, i) => <div key={`v-${i}`} />)}
             {diasDoMes.map(dia => {
@@ -328,7 +316,6 @@ export default function AgendaPage() {
               const hoje = isToday(dia)
               const fds = dia.getDay() === 0 || dia.getDay() === 6
               const temPendente = evs.some(e => e.status === 'pendente')
-
               return (
                 <button key={dia.toISOString()} onClick={() => setDiaSelecionado(dia)}
                   className={cn('relative p-1.5 rounded-xl text-sm transition-all min-h-12 flex flex-col items-center gap-0.5',
@@ -348,7 +335,6 @@ export default function AgendaPage() {
               )
             })}
           </div>
-
           <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100">
             {Object.entries(TIPO_CONFIG).map(([k, v]) => (
               <div key={k} className="flex items-center gap-1.5">
@@ -359,12 +345,10 @@ export default function AgendaPage() {
           </div>
         </div>
 
-        {/* Eventos do dia */}
         <div className="card">
           <h3 className="section-title text-base mb-4">
             {diaSelecionado ? format(diaSelecionado, "dd 'de' MMMM", { locale: ptBR }) : 'Selecione um dia'}
           </h3>
-
           {eventosDiaSelecionado.length === 0 ? (
             <div className="text-center py-8">
               <Calendar size={32} className="mx-auto mb-2 text-gray-200" />
@@ -381,7 +365,7 @@ export default function AgendaPage() {
                 const Icon = config.icon
                 return (
                   <div key={evento.id} onClick={() => abrirDetalhes(evento)}
-                    className="flex gap-3 p-3 rounded-xl hover:bg-creme transition-all cursor-pointer group">
+                    className="flex gap-3 p-3 rounded-xl hover:bg-creme transition-all cursor-pointer">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: config.cor + '20' }}>
                       <Icon size={14} style={{ color: config.cor }} />
@@ -395,10 +379,10 @@ export default function AgendaPage() {
                           <span className="text-xs text-gray-400">{format(parseISO(evento.data_inicio), 'HH:mm')}</span>
                         </div>
                       )}
-                      {evento.local && <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5"><MapPin size={10} />{evento.local}</p>}
+                      {evento.local && <p className="text-xs text-gray-400 flex items-center gap-1"><MapPin size={10} />{evento.local}</p>}
                       {evento.link_online && (
                         <a href={evento.link_online} target="_blank" rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()} className="text-xs text-vinho hover:underline flex items-center gap-1 mt-0.5">
+                          onClick={e => e.stopPropagation()} className="text-xs text-vinho hover:underline flex items-center gap-1">
                           <Link size={10} /> Entrar
                         </a>
                       )}
@@ -419,7 +403,6 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* Modal detalhes */}
       <Modal open={!!eventoDetalhes} onClose={() => { setEventoDetalhes(null); setModoEditar(false) }}>
         {eventoDetalhes && (
           <div className="p-6">
@@ -441,7 +424,6 @@ export default function AgendaPage() {
                 <button onClick={() => { setEventoDetalhes(null); setModoEditar(false) }} className="btn-ghost p-2"><X size={18} /></button>
               </div>
             </div>
-
             {modoEditar ? (
               <CamposEvento f={formEditar} set={(k, v) => setFormEditar(f => ({ ...f, [k]: v }))} />
             ) : (
@@ -458,7 +440,6 @@ export default function AgendaPage() {
                   })}>{eventoDetalhes.status}</span>
                   {eventoDetalhes.google_event_id && <span className="badge bg-blue-100 text-blue-700 text-xs">📅 Google Calendar</span>}
                 </div>
-
                 {!eventoDetalhes.dia_todo && (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Clock size={14} />
@@ -480,7 +461,6 @@ export default function AgendaPage() {
                     <p className="text-sm text-gray-700">{eventoDetalhes.observacoes}</p>
                   </div>
                 )}
-
                 {eventoDetalhes.status === 'pendente' && (
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
                     <p className="text-sm font-medium text-orange-700 mb-2">⏳ Solicitação pendente</p>
@@ -496,15 +476,12 @@ export default function AgendaPage() {
                     </div>
                   </div>
                 )}
-
-                {/* Adicionar ao Google Calendar */}
                 {googleConectado && !eventoDetalhes.google_event_id && (
                   <button onClick={() => enviarParaGoogle(eventoDetalhes)} disabled={sincronizando}
                     className="btn-secondary w-full flex items-center justify-center gap-2 text-sm">
                     <ExternalLink size={14} /> {sincronizando ? 'Adicionando...' : 'Adicionar ao Google Calendar'}
                   </button>
                 )}
-
                 <div className="flex gap-2 pt-2">
                   <button onClick={() => excluir(eventoDetalhes.id)} className="btn-danger flex-1 justify-center text-sm">Excluir</button>
                   <button onClick={() => { setEventoDetalhes(null); setModoEditar(false) }} className="btn-secondary flex-1 text-sm">Fechar</button>
@@ -515,7 +492,6 @@ export default function AgendaPage() {
         )}
       </Modal>
 
-      {/* Modal novo evento */}
       <Modal open={modalAberto} onClose={() => setModalAberto(false)}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -532,5 +508,17 @@ export default function AgendaPage() {
         </div>
       </Modal>
     </div>
+  )
+}
+
+export default function AgendaPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-vinho/30 border-t-vinho rounded-full animate-spin" />
+      </div>
+    }>
+      <AgendaContent />
+    </Suspense>
   )
 }
