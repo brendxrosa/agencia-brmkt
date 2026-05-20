@@ -159,14 +159,24 @@ function AgendaContent() {
     if (!googleConectado) { window.location.href = '/api/auth/google'; return }
     setSincronizando(true)
     try {
-      const res = await fetch('/api/google-calendar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'listar' })
-      })
-      const data = await res.json()
-      setSucesso(`${data.eventos?.length || 0} evento(s) no Google Calendar!`)
-      setTimeout(() => setSucesso(''), 4000)
+      const eventosSemSync = eventos.filter(e => !e.google_event_id)
+      let count = 0
+      for (const evento of eventosSemSync) {
+        const res = await fetch('/api/google-calendar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'criar', evento })
+        })
+        const data = await res.json()
+        if (data.success) count++
+      }
+      if (eventosSemSync.length === 0) {
+        setSucesso('Todos os eventos já estão sincronizados! ✅')
+      } else {
+        setSucesso(`${count} evento(s) sincronizado(s) com o Google Calendar! ✅`)
+      }
+      setTimeout(() => setSucesso(''), 5000)
+      carregar()
     } catch { setSucesso('Erro ao sincronizar') }
     setSincronizando(false)
   }
@@ -277,7 +287,9 @@ function AgendaContent() {
           <button onClick={sincronizarComGoogle} disabled={sincronizando}
             className={cn('btn-secondary flex items-center gap-2 text-sm', googleConectado ? 'text-emerald-700 border-emerald-200' : '')}>
             <RefreshCw size={14} className={sincronizando ? 'animate-spin' : ''} />
-            {googleConectado ? 'Google Calendar ✓' : 'Conectar Google'}
+            {googleConectado
+              ? `Sincronizar (${eventos.filter(e => !e.google_event_id).length} pendente(s))`
+              : 'Conectar Google'}
           </button>
           <button onClick={() => {
             setForm({ ...formVazio, data_inicio: diaSelecionado ? format(diaSelecionado, 'yyyy-MM-dd') : '' })
