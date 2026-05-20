@@ -47,7 +47,7 @@ export default function ClienteNav({ profile }: { profile: any }) {
           </div>
 
           <nav className="flex items-center gap-0.5">
-            {navItems.map(({ href, label, icon: Icon }) => { href: '/cliente/perfil', label: 'Perfil', icon: User },
+            {navItems.map(({ href, label, icon: Icon }) => 
               const active = pathname === href
               return (
                 <Link key={href} href={href}
