@@ -83,7 +83,9 @@ export default function BriefingsPage() {
   }
 
   function togglePergunta(id: string) {
-    setPerguntasSelecionadas(prev => [...prev, ...ids].filter((v, i, a) => a.indexOf(v) === i))
+    setPerguntasSelecionadas(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
   }
 
   function toggleCategoria(cat: string) {
@@ -95,7 +97,7 @@ export default function BriefingsPage() {
   function selecionarCategoria(cat: string, selecionar: boolean) {
     const ids = BANCO_PERGUNTAS.filter(p => p.categoria === cat).map(p => p.id)
     if (selecionar) {
-      setPerguntasSelecionadas(prev => [...new Set([...prev, ...ids])])
+      setPerguntasSelecionadas(prev => [...prev, ...ids].filter((v, i, a) => a.indexOf(v) === i))
     } else {
       setPerguntasSelecionadas(prev => prev.filter(id => !ids.includes(id)))
     }
@@ -181,7 +183,7 @@ export default function BriefingsPage() {
 
               {/* Categorias do briefing */}
               <div className="flex flex-wrap gap-1 mb-4">
-                {[...new Set((b.perguntas || []).map((p: any) => p.categoria))].map((cat: any) => (
+                {(b.perguntas || []).map((p: any) => p.categoria).filter((v: any, i: number, a: any[]) => a.indexOf(v) === i).map((cat: any) => (
                   <span key={cat} className="badge bg-creme text-gray-600 text-xs">
                     {CATEGORIAS[cat]?.split(' ').slice(1).join(' ') || cat}
                   </span>
