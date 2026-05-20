@@ -13,7 +13,19 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
-const NAV_GRUPOS = [
+interface NavItem {
+  href: string
+  label: string
+  icon: any
+  exact?: boolean
+}
+
+interface NavGrupo {
+  grupo: string | null
+  items: NavItem[]
+}
+
+const NAV_GRUPOS: NavGrupo[] = [
   {
     grupo: null,
     items: [
@@ -62,6 +74,92 @@ const NAV_GRUPOS = [
   },
 ]
 
+function NavContent({
+  collapsed,
+  setCollapsed,
+  onNavClick,
+  gruposAbertos,
+  toggleGrupo,
+  isActive,
+  handleLogout,
+  showCollapseBtn,
+}: {
+  collapsed: boolean
+  setCollapsed: (v: boolean) => void
+  onNavClick: () => void
+  gruposAbertos: string[]
+  toggleGrupo: (g: string) => void
+  isActive: (href: string, exact?: boolean) => boolean
+  handleLogout: () => void
+  showCollapseBtn: boolean
+}) {
+  return (
+    <>
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+        {NAV_GRUPOS.map(({ grupo, items }) => (
+          <div key={grupo || 'main'}>
+            {!grupo && items.map((item) => (
+              <Link key={item.href} href={item.href} onClick={onNavClick}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 mb-1',
+                  isActive(item.href, item.exact) ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/8 hover:text-white/90'
+                )}>
+                <item.icon size={18} className="flex-shrink-0" />
+                {!collapsed && <span className="truncate">{item.label}</span>}
+              </Link>
+            ))}
+
+            {grupo && (
+              <div className="mb-1">
+                {!collapsed ? (
+                  <button onClick={() => toggleGrupo(grupo)}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-white/30 hover:text-white/50 transition-colors">
+                    <span className="text-xs font-semibold uppercase tracking-wider">{grupo}</span>
+                    {gruposAbertos.includes(grupo) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                ) : (
+                  <div className="border-t border-white/10 my-2" />
+                )}
+
+                {(collapsed || gruposAbertos.includes(grupo)) && (
+                  <div className="space-y-0.5">
+                    {items.map((item) => (
+                      <Link key={item.href} href={item.href} onClick={onNavClick}
+                        title={collapsed ? item.label : undefined}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150',
+                          isActive(item.href) ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/8 hover:text-white/90'
+                        )}>
+                        <item.icon size={16} className="flex-shrink-0" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </nav>
+
+      <div className="p-2 border-t border-white/10 space-y-1 flex-shrink-0">
+        {showCollapseBtn && (
+          <button onClick={() => setCollapsed(!collapsed)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/8 transition-all text-sm">
+            {collapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /><span>Recolher</span></>}
+          </button>
+        )}
+        <button onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/50 hover:text-red-300 hover:bg-white/8 transition-all text-sm">
+          <LogOut size={18} className="flex-shrink-0" />
+          {!collapsed && <span>Sair</span>}
+        </button>
+      </div>
+    </>
+  )
+}
+
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -89,73 +187,12 @@ export default function Sidebar() {
     return pathname === href || pathname.startsWith(href + '/')
   }
 
-  function handleNavClick() {
-    setMobileAberto(false)
+  const navProps = {
+    gruposAbertos,
+    toggleGrupo,
+    isActive,
+    handleLogout,
   }
-
-  const NavContent = () => (
-    <>
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {NAV_GRUPOS.map(({ grupo, items }) => (
-          <div key={grupo || 'main'}>
-            {!grupo && items.map(({ href, label, icon: Icon, exact }) => (
-              <Link key={href} href={href} onClick={handleNavClick}
-                title={collapsed ? label : undefined}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 mb-1',
-                  isActive(href, exact) ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/8 hover:text-white/90'
-                )}>
-                <Icon size={18} className="flex-shrink-0" />
-                {!collapsed && <span className="truncate">{label}</span>}
-              </Link>
-            ))}
-
-            {grupo && (
-              <div className="mb-1">
-                {!collapsed ? (
-                  <button onClick={() => toggleGrupo(grupo)}
-                    className="w-full flex items-center justify-between px-3 py-1.5 text-white/30 hover:text-white/50 transition-colors">
-                    <span className="text-xs font-semibold uppercase tracking-wider">{grupo}</span>
-                    {gruposAbertos.includes(grupo) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                  </button>
-                ) : (
-                  <div className="border-t border-white/10 my-2" />
-                )}
-
-                {(collapsed || gruposAbertos.includes(grupo)) && (
-                  <div className="space-y-0.5">
-                    {items.map(({ href, label, icon: Icon }) => (
-                      <Link key={href} href={href} onClick={handleNavClick}
-                        title={collapsed ? label : undefined}
-                        className={cn(
-                          'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150',
-                          isActive(href) ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/8 hover:text-white/90'
-                        )}>
-                        <Icon size={16} className="flex-shrink-0" />
-                        {!collapsed && <span className="truncate">{label}</span>}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </nav>
-
-      <div className="p-2 border-t border-white/10 space-y-1 flex-shrink-0">
-        <button onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/8 transition-all text-sm">
-          {collapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /><span>Recolher</span></>}
-        </button>
-        <button onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-white/50 hover:text-red-300 hover:bg-white/8 transition-all text-sm">
-          <LogOut size={18} className="flex-shrink-0" />
-          {!collapsed && <span>Sair</span>}
-        </button>
-      </div>
-    </>
-  )
 
   return (
     <>
@@ -190,7 +227,13 @@ export default function Sidebar() {
             <X size={20} />
           </button>
         </div>
-        <NavContent />
+        <NavContent
+          {...navProps}
+          collapsed={false}
+          setCollapsed={() => {}}
+          onNavClick={() => setMobileAberto(false)}
+          showCollapseBtn={false}
+        />
       </aside>
 
       {/* Sidebar desktop */}
@@ -209,7 +252,13 @@ export default function Sidebar() {
             </div>
           )}
         </div>
-        <NavContent />
+        <NavContent
+          {...navProps}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          onNavClick={() => {}}
+          showCollapseBtn={true}
+        />
       </aside>
     </>
   )
