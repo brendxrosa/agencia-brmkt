@@ -83,9 +83,7 @@ export default function BriefingsPage() {
   }
 
   function togglePergunta(id: string) {
-    setPerguntasSelecionadas(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
+    setPerguntasSelecionadas(prev => [...prev, ...ids].filter((v, i, a) => a.indexOf(v) === i))
   }
 
   function toggleCategoria(cat: string) {
