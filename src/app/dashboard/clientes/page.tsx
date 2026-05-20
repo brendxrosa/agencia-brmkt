@@ -51,17 +51,39 @@ export default function ClientesPage() {
 
   useEffect(() => { carregar() }, [])
 
-  async function salvar(f: any) {
-    if (!f.nome || !f.email) return alert('Nome e e-mail são obrigatórios!')
-    if (editando?.id) {
-      await supabase.from('clientes').update(f).eq('id', editando.id)
-    } else {
-      await supabase.from('clientes').insert(f)
-    }
-    setModalAberto(false)
-    setEditando(null)
-    carregar()
+async function salvar(f: any) {
+  if (!f.nome || !f.email) return alert('Nome e e-mail são obrigatórios!')
+  
+  const dados = {
+    nome: f.nome,
+    email: f.email,
+    telefone: f.telefone || null,
+    instagram: f.instagram || null,
+    empresa: f.empresa || null,
+    segmento: f.segmento || null,
+    plano: f.plano || 'Básico',
+    valor_mensal: f.valor_mensal || 0,
+    dia_vencimento: f.dia_vencimento || 10,
+    status: f.status || 'ativo',
+    cor: f.cor || CORES_CLIENTES[0],
+    persona: f.persona || null,
+    tom_de_voz: f.tom_de_voz || null,
+    objetivo: f.objetivo || null,
+    observacoes: f.observacoes || null,
+    data_inicio_contrato: f.data_inicio_contrato || null,
+    data_fim_contrato: f.data_fim_contrato || null,
+    drive_url: f.drive_url || null,
   }
+
+  if (editando?.id) {
+    await supabase.from('clientes').update(dados).eq('id', editando.id)
+  } else {
+    await supabase.from('clientes').insert(dados)
+  }
+  setModalAberto(false)
+  setEditando(null)
+  carregar()
+}
 
   async function excluir(id: string) {
     if (!confirm('Tem certeza que deseja excluir este cliente?')) return
