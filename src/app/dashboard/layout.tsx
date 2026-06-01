@@ -1,6 +1,6 @@
 import Sidebar from '@/components/layout/Sidebar'
 import ChatFlutuante from '@/components/layout/ChatFlutuante'
-import NotificacoesSino from '@/components/layout/NotificacoesSino'
+import NotificacoesSino from '@/components/layout/NotificacoesSino' 
 import PushNotificacoes from '@/components/layout/PushNotificacoes'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -13,10 +13,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Espaço pro botão hamburguer no mobile */}
           <div className="w-10 lg:hidden" />
           <div className="flex items-center gap-3">
+            <NotificacoesSino />  
+            <PushNotificacoes />
             <NotificacoesSino />
-          </div>
-        </header>
 
+          </div>
+        </header> 
+       
         <main className="flex-1 p-4 lg:p-6 max-w-[1400px] w-full mx-auto animate-fade-in">
           {children}
         </main>
