@@ -1,6 +1,7 @@
 import Sidebar from '@/components/layout/Sidebar'
 import ChatFlutuante from '@/components/layout/ChatFlutuante'
 import NotificacoesSino from '@/components/layout/NotificacoesSino'
+import PushNotificacoes from '@/components/layout/PushNotificacoes'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
