@@ -113,15 +113,16 @@ function AgendaContent() {
     const fim = format(endOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const { data: { user } } = await supabase.auth.getUser()
 
-    const [{ data: e }, { data: c }, { data: profile }] = await Promise.all([
+    const [{ data: e }, { data: c }, googleStatus] = await Promise.all([
       supabase.from('eventos').select('*, clientes(nome, cor)')
         .gte('data_inicio', inicio).lte('data_inicio', fim + 'T23:59:59').order('data_inicio'),
       supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome'),
-      supabase.from('profiles').select('google_access_token').eq('email', user?.email || '').single()    ])
+      fetch('/api/google-status').then(r => r.json()).catch(() => ({ conectado: false }))
+    ])
 
     setEventos(e || [])
     setClientes(c || [])
-    setGoogleConectado(!!profile?.google_access_token)
+    setGoogleConectado(!!googleStatus?.conectado)
     setLoading(false)
   }
 
