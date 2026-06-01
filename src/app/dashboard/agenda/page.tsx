@@ -117,8 +117,7 @@ function AgendaContent() {
       supabase.from('eventos').select('*, clientes(nome, cor)')
         .gte('data_inicio', inicio).lte('data_inicio', fim + 'T23:59:59').order('data_inicio'),
       supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome'),
-      supabase.from('profiles').select('google_access_token').eq('id', user?.id || '').single()
-    ])
+      supabase.from('profiles').select('google_access_token').eq('email', user?.email || '').single()    ])
 
     setEventos(e || [])
     setClientes(c || [])
