@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: Request) {
   try {
@@ -17,24 +17,26 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Senha deve ter no mínimo 6 caracteres' }, { status: 400 })
       }
       const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: senha })
-      if (error) throw error
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 })
       return NextResponse.json({ success: true })
     }
 
     if (action === 'ativar') {
-      await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 })
       await supabaseAdmin.from('profiles').update({ ativo: true }).eq('id', userId)
       return NextResponse.json({ success: true })
     }
 
     if (action === 'desativar') {
-      await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '876600h' })
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '87600h' })
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 })
       await supabaseAdmin.from('profiles').update({ ativo: false }).eq('id', userId)
       return NextResponse.json({ success: true })
     }
 
     return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
