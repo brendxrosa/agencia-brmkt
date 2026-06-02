@@ -33,6 +33,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 export default function EquipePage() {
   const supabase = createClient()
   const [membros, setMembros] = useState<any[]>([])
+  const [clientesComLogin, setClientesComLogin] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [modalNovo, setModalNovo] = useState(false)
@@ -61,10 +62,11 @@ export default function EquipePage() {
 
   async function carregar() {
     const [{ data: p }, { data: c }] = await Promise.all([
-      supabase.from('profiles').select('*, equipe(id, cargo, modulos_acesso, ativo)').in('role', ['admin','equipe']),
+      supabase.from('profiles').select('*, equipe(id, cargo, modulos_acesso, ativo), clientes(nome, cor)').in('role', ['admin','equipe','cliente']),
       supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome')
     ])
-    setMembros(p || [])
+    setMembros((p || []).filter((m: any) => m.role !== 'cliente'))
+    setClientesComLogin((p || []).filter((m: any) => m.role === 'cliente'))
     setClientes(c || [])
     setLoading(false)
   }
@@ -90,10 +92,7 @@ export default function EquipePage() {
       setSucesso(`Acesso de ${membro.nome} ${ativo ? 'desativado' : 'ativado'}!`)
       setTimeout(() => setSucesso(''), 3000)
       carregar()
-    } catch (err: any) {
-      setErro(err.message)
-      setTimeout(() => setErro(''), 3000)
-    }
+    } catch (err: any) { setErro(err.message); setTimeout(() => setErro(''), 3000) }
   }
 
   async function resetarSenha() {
@@ -101,13 +100,11 @@ export default function EquipePage() {
     setSalvando(true)
     try {
       await chamarAPI({ action: 'resetar_senha', userId: membroEditando.id, senha: novaSenha })
-      setSucesso('Senha alterada com sucesso!')
+      setSucesso('Senha alterada!')
       setModalSenha(false)
       setNovaSenha('')
       setTimeout(() => setSucesso(''), 3000)
-    } catch (err: any) {
-      setErro(err.message)
-    }
+    } catch (err: any) { setErro(err.message) }
     setSalvando(false)
   }
 
@@ -126,9 +123,7 @@ export default function EquipePage() {
     try {
       const url = await uploadAvatar(file, membroEditando.id)
       setFormEditar(f => ({ ...f, avatar_url: url }))
-    } catch (err: any) {
-      setErro('Erro ao fazer upload: ' + err.message)
-    }
+    } catch (err: any) { setErro('Erro ao fazer upload: ' + err.message) }
   }
 
   function abrirEditar(membro: any) {
@@ -152,23 +147,15 @@ export default function EquipePage() {
         nome: formEditar.nome, role: formEditar.role,
         avatar_url: formEditar.avatar_url || null
       }).eq('id', membroEditando.id)
-
       const equipeInfo = membroEditando.equipe?.[0]
       if (equipeInfo) {
-        await supabase.from('equipe').update({
-          cargo: formEditar.cargo, modulos_acesso: formEditar.modulos
-        }).eq('id', equipeInfo.id)
+        await supabase.from('equipe').update({ cargo: formEditar.cargo, modulos_acesso: formEditar.modulos }).eq('id', equipeInfo.id)
       } else {
-        await supabase.from('equipe').insert({
-          profile_id: membroEditando.id, cargo: formEditar.cargo,
-          modulos_acesso: formEditar.modulos, ativo: true
-        })
+        await supabase.from('equipe').insert({ profile_id: membroEditando.id, cargo: formEditar.cargo, modulos_acesso: formEditar.modulos, ativo: true })
       }
       setModalEditar(false)
       carregar()
-    } catch (err: any) {
-      setErro(err.message)
-    }
+    } catch (err: any) { setErro(err.message) }
     setSalvando(false)
   }
 
@@ -188,9 +175,7 @@ export default function EquipePage() {
       setModalNovo(false)
       setForm({ nome: '', email: '', senha: '', cargo: '', role: 'equipe', modulos: ['clientes','kanban','calendario','tarefas'] })
       carregar()
-    } catch (err: any) {
-      setErro(err.message)
-    }
+    } catch (err: any) { setErro(err.message) }
     setCriando(false)
   }
 
@@ -214,9 +199,8 @@ export default function EquipePage() {
       setModalCliente(false)
       setFormCliente({ cliente_id: '', email: '', senha: '' })
       alert('Acesso criado! Cliente acessa em: agencia-brmkt.vercel.app/auth/cliente-login')
-    } catch (err: any) {
-      setErro(err.message)
-    }
+      carregar()
+    } catch (err: any) { setErro(err.message) }
     setCriando(false)
   }
 
@@ -230,10 +214,12 @@ export default function EquipePage() {
 
   const Avatar = ({ membro, size = 'md' }: { membro: any, size?: 'sm' | 'md' }) => {
     const sizes = { sm: 'w-8 h-8 text-sm', md: 'w-12 h-12 text-lg' }
+    const cor = membro.clientes?.cor || '#6B0F2A'
     return membro.avatar_url ? (
       <img src={membro.avatar_url} alt={membro.nome} className={cn(sizes[size], 'rounded-2xl object-cover flex-shrink-0')} />
     ) : (
-      <div className={cn(sizes[size], 'rounded-2xl bg-vinho flex items-center justify-center text-white font-display font-bold flex-shrink-0')}>
+      <div className={cn(sizes[size], 'rounded-2xl flex items-center justify-center text-white font-display font-bold flex-shrink-0')}
+        style={{ backgroundColor: cor }}>
         {getInitials(membro.nome)}
       </div>
     )
@@ -244,11 +230,11 @@ export default function EquipePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Equipe & Acessos</h1>
-          <p className="text-gray-500 text-sm mt-1">{membros.length} membro(s) na equipe</p>
+          <p className="text-gray-500 text-sm mt-1">{membros.length} membro(s) · {clientesComLogin.length} cliente(s) com acesso</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { setErro(''); setModalCliente(true) }} className="btn-secondary flex items-center gap-2">
-            <User size={16} /> Acesso para cliente
+            <User size={16} /> Acesso cliente
           </button>
           <button onClick={() => { setErro(''); setModalNovo(true) }} className="btn-primary flex items-center gap-2">
             <Plus size={16} /> Novo membro
@@ -256,15 +242,9 @@ export default function EquipePage() {
         </div>
       </div>
 
-      {sucesso && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-xl">
-          ✅ {sucesso}
-        </div>
-      )}
+      {sucesso && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-xl">✅ {sucesso}</div>}
       {erro && !modalEditar && !modalNovo && !modalCliente && !modalSenha && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
-          ❌ {erro}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">❌ {erro}</div>
       )}
 
       {loading ? (
@@ -272,82 +252,115 @@ export default function EquipePage() {
           {[1,2].map(i => <div key={i} className="card h-40 animate-pulse bg-creme" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {membros.map(membro => {
-            const roleKey = membro.role as keyof typeof ROLE_CONFIG
-            const role = ROLE_CONFIG[roleKey] || ROLE_CONFIG.equipe
-            const Icon = role.icon
-            const equipeInfo = membro.equipe?.[0]
-            const ativo = membro.ativo !== false
+        <>
+          {/* EQUIPE */}
+          <div>
+            <h2 className="section-title text-sm mb-3">Equipe interna</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {membros.map(membro => {
+                const roleKey = membro.role as keyof typeof ROLE_CONFIG
+                const role = ROLE_CONFIG[roleKey] || ROLE_CONFIG.equipe
+                const Icon = role.icon
+                const equipeInfo = membro.equipe?.[0]
+                const ativo = membro.ativo !== false
 
-            return (
-              <div key={membro.id} className={cn('card group', !ativo && 'opacity-60')}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="relative">
-                    <Avatar membro={membro} />
-                    {!ativo && (
-                      <div className="absolute inset-0 rounded-2xl bg-gray-500/40 flex items-center justify-center">
-                        <Power size={14} className="text-white" />
+                return (
+                  <div key={membro.id} className={cn('card group', !ativo && 'opacity-60')}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="relative">
+                        <Avatar membro={membro} />
+                        {!ativo && <div className="absolute inset-0 rounded-2xl bg-gray-500/40 flex items-center justify-center"><Power size={14} className="text-white" /></div>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-800">{membro.nome}</p>
+                          {!ativo && <span className="badge bg-gray-100 text-gray-500 text-xs">Inativo</span>}
+                        </div>
+                        <p className="text-xs text-gray-400">{membro.email}</p>
+                        {equipeInfo?.cargo && <p className="text-xs text-gray-400">{equipeInfo.cargo}</p>}
+                      </div>
+                      <span className={cn('badge text-xs flex items-center gap-1', role.cor)}>
+                        <Icon size={11} /> {role.label}
+                      </span>
+                    </div>
+
+                    {equipeInfo?.modulos_acesso && (
+                      <div className="mb-3">
+                        <div className="flex flex-wrap gap-1">
+                          {equipeInfo.modulos_acesso.map((m: string) => (
+                            <span key={m} className="badge bg-creme text-gray-600 text-xs">{MODULOS_LABELS[m] || m}</span>
+                          ))}
+                        </div>
                       </div>
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-gray-800">{membro.nome}</p>
-                      {!ativo && <span className="badge bg-gray-100 text-gray-500 text-xs">Inativo</span>}
-                    </div>
-                    <p className="text-xs text-gray-400">{membro.email}</p>
-                    {equipeInfo?.cargo && <p className="text-xs text-gray-400">{equipeInfo.cargo}</p>}
-                  </div>
-                  <span className={cn('badge text-xs flex items-center gap-1', role.cor)}>
-                    <Icon size={11} /> {role.label}
-                  </span>
-                </div>
 
-                {equipeInfo?.modulos_acesso && (
-                  <div className="mb-3">
-                    <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                      <Shield size={11} /> Módulos com acesso
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {equipeInfo.modulos_acesso.map((m: string) => (
-                        <span key={m} className="badge bg-creme text-gray-600 text-xs">{MODULOS_LABELS[m] || m}</span>
-                      ))}
+                    <div className="flex gap-2 pt-3 border-t border-gray-100">
+                      <button onClick={() => abrirEditar(membro)} className="flex-1 btn-ghost text-xs py-1.5 flex items-center justify-center gap-1.5">
+                        <Edit2 size={13} /> Editar
+                      </button>
+                      <button onClick={() => { setMembroEditando(membro); setNovaSenha(''); setErro(''); setModalSenha(true) }}
+                        className="flex-1 btn-ghost text-xs py-1.5 flex items-center justify-center gap-1.5">
+                        <KeyRound size={13} /> Senha
+                      </button>
+                      <button onClick={() => toggleAtivo(membro)}
+                        className={cn('flex-1 text-xs py-1.5 rounded-xl font-medium flex items-center justify-center gap-1.5 transition-all',
+                          ativo ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100')}>
+                        <Power size={13} /> {ativo ? 'Desativar' : 'Ativar'}
+                      </button>
                     </div>
                   </div>
-                )}
+                )
+              })}
+            </div>
+          </div>
 
-                {/* Ações */}
-                <div className="flex gap-2 pt-3 border-t border-gray-100">
-                  <button onClick={() => abrirEditar(membro)}
-                    className="flex-1 btn-ghost text-xs py-1.5 flex items-center justify-center gap-1.5">
-                    <Edit2 size={13} /> Editar
-                  </button>
-                  <button onClick={() => { setMembroEditando(membro); setNovaSenha(''); setErro(''); setModalSenha(true) }}
-                    className="flex-1 btn-ghost text-xs py-1.5 flex items-center justify-center gap-1.5">
-                    <KeyRound size={13} /> Senha
-                  </button>
-                  <button onClick={() => toggleAtivo(membro)}
-                    className={cn('flex-1 text-xs py-1.5 rounded-xl font-medium flex items-center justify-center gap-1.5 transition-all',
-                      ativo ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100')}>
-                    <Power size={13} /> {ativo ? 'Desativar' : 'Ativar'}
-                  </button>
-                </div>
+          {/* CLIENTES COM ACESSO */}
+          {clientesComLogin.length > 0 && (
+            <div>
+              <h2 className="section-title text-sm mb-3">Clientes com acesso ao portal</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {clientesComLogin.map(cliente => {
+                  const ativo = cliente.ativo !== false
+                  return (
+                    <div key={cliente.id} className={cn('card flex items-center gap-3', !ativo && 'opacity-60')}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0"
+                        style={{ backgroundColor: cliente.clientes?.cor || '#6B0F2A' }}>
+                        {getInitials(cliente.nome)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-800 truncate">{cliente.nome}</p>
+                        <p className="text-xs text-gray-400 truncate">{cliente.email}</p>
+                        {!ativo && <span className="badge bg-gray-100 text-gray-500 text-xs mt-0.5">Inativo</span>}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <button onClick={() => { setMembroEditando(cliente); setNovaSenha(''); setErro(''); setModalSenha(true) }}
+                          className="btn-ghost p-1.5" title="Resetar senha">
+                          <KeyRound size={14} />
+                        </button>
+                        <button onClick={() => toggleAtivo(cliente)}
+                          className={cn('p-1.5 rounded-xl transition-all',
+                            ativo ? 'text-red-400 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50')}
+                          title={ativo ? 'Desativar' : 'Ativar'}>
+                          <Power size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       <div className="card border-l-4 border-l-rosa bg-rosa-pale/20">
-        <h3 className="section-title text-sm mb-2">Portal do cliente</h3>
+        <h3 className="section-title text-sm mb-1">Portal do cliente</h3>
         <p className="text-sm text-gray-600">
           Link: <span className="font-mono text-xs bg-white px-2 py-1 rounded-lg border">agencia-brmkt.vercel.app/auth/cliente-login</span>
         </p>
-        <p className="text-xs text-gray-400 mt-1">Para desativar um cliente, edite o status dele em Clientes → Encerrado.</p>
       </div>
 
-      {/* Modal resetar senha */}
+      {/* Modal senha */}
       <Modal open={modalSenha} onClose={() => setModalSenha(false)}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -357,7 +370,9 @@ export default function EquipePage() {
           {membroEditando && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-3 bg-creme rounded-xl">
-                <Avatar membro={membroEditando} size="sm" />
+                <div className="w-8 h-8 rounded-xl bg-vinho flex items-center justify-center text-white text-xs font-bold">
+                  {getInitials(membroEditando.nome)}
+                </div>
                 <div>
                   <p className="text-sm font-medium">{membroEditando.nome}</p>
                   <p className="text-xs text-gray-400">{membroEditando.email}</p>
@@ -367,8 +382,7 @@ export default function EquipePage() {
                 <label className="label">Nova senha *</label>
                 <div className="relative">
                   <input className="input pr-10" type={mostrarSenha ? 'text' : 'password'}
-                    value={novaSenha} onChange={e => setNovaSenha(e.target.value)}
-                    placeholder="Mínimo 6 caracteres" />
+                    value={novaSenha} onChange={e => setNovaSenha(e.target.value)} placeholder="Mínimo 6 caracteres" />
                   <button onClick={() => setMostrarSenha(!mostrarSenha)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                     {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -387,7 +401,7 @@ export default function EquipePage() {
         </div>
       </Modal>
 
-      {/* Modal editar */}
+      {/* Modal editar membro */}
       <Modal open={modalEditar} onClose={() => setModalEditar(false)}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
@@ -411,16 +425,11 @@ export default function EquipePage() {
                   </button>
                   <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                 </div>
-                <p className="text-xs text-gray-400">Clique na câmera para alterar</p>
               </div>
-              <div>
-                <label className="label">Nome</label>
-                <input className="input" value={formEditar.nome} onChange={e => setFormEditar(f => ({ ...f, nome: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Cargo</label>
-                <input className="input" value={formEditar.cargo} onChange={e => setFormEditar(f => ({ ...f, cargo: e.target.value }))} />
-              </div>
+              <div><label className="label">Nome</label>
+                <input className="input" value={formEditar.nome} onChange={e => setFormEditar(f => ({ ...f, nome: e.target.value }))} /></div>
+              <div><label className="label">Cargo</label>
+                <input className="input" value={formEditar.cargo} onChange={e => setFormEditar(f => ({ ...f, cargo: e.target.value }))} /></div>
               <div>
                 <label className="label">Perfil</label>
                 <div className="flex gap-2">
@@ -435,7 +444,7 @@ export default function EquipePage() {
               </div>
               {formEditar.role === 'equipe' && (
                 <div>
-                  <label className="label">Módulos com acesso</label>
+                  <label className="label">Módulos</label>
                   <div className="flex flex-wrap gap-2">
                     {MODULOS.map(m => (
                       <button key={m} onClick={() => toggleModulo(m, 'editar')}
