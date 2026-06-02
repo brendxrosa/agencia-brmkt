@@ -11,7 +11,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-modal w-full max-w-lg animate-slide-up">
+      <div className="relative bg-white rounded-3xl shadow-modal w-full max-w-lg animate-slide-up max-h-[90vh] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -66,10 +66,20 @@ export default function TarefasPage() {
 
   async function salvar() {
     if (!form.titulo) return alert('Título é obrigatório!')
+    const dados = {
+      titulo: form.titulo,
+      descricao: form.descricao || null,
+      cliente_id: form.cliente_id || null,
+      responsavel_id: form.responsavel_id || null,
+      prioridade: form.prioridade,
+      prazo: form.prazo || null,
+      status: form.status,
+      visivel_cliente: form.visivel_cliente,
+    }
     if (editando?.id) {
-      await supabase.from('tarefas').update(form).eq('id', editando.id)
+      await supabase.from('tarefas').update(dados).eq('id', editando.id)
     } else {
-      await supabase.from('tarefas').insert(form)
+      await supabase.from('tarefas').insert(dados)
     }
     setModalAberto(false)
     setEditando(null)
@@ -107,8 +117,11 @@ export default function TarefasPage() {
           <h1 className="page-title">Tarefas</h1>
           <p className="text-gray-500 text-sm mt-1">{pendentes} pendentes · {urgentes} urgentes</p>
         </div>
-        <button onClick={() => { setEditando(null); setForm({ titulo: '', descricao: '', cliente_id: '', responsavel_id: '', prioridade: 'media', prazo: '', status: 'pendente', visivel_cliente: false }); setModalAberto(true) }}
-          className="btn-primary flex items-center gap-2">
+        <button onClick={() => {
+          setEditando(null)
+          setForm({ titulo: '', descricao: '', cliente_id: '', responsavel_id: '', prioridade: 'media', prazo: '', status: 'pendente', visivel_cliente: false })
+          setModalAberto(true)
+        }} className="btn-primary flex items-center gap-2">
           <Plus size={16} /> Nova tarefa
         </button>
       </div>
@@ -149,7 +162,6 @@ export default function TarefasPage() {
               <button onClick={() => toggleStatus(tarefa)} className="flex-shrink-0 text-gray-400 hover:text-vinho transition-colors">
                 {tarefa.status === 'concluida' ? <CheckSquare size={20} className="text-emerald-500" /> : <Square size={20} />}
               </button>
-
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className={cn('text-sm font-medium text-gray-800', tarefa.status === 'concluida' && 'line-through text-gray-400')}>
@@ -219,23 +231,28 @@ export default function TarefasPage() {
           <div className="space-y-4">
             <div>
               <label className="label">Título *</label>
-              <input className="input" value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} placeholder="O que precisa ser feito?" />
+              <input className="input" value={form.titulo}
+                onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
+                placeholder="O que precisa ser feito?" />
             </div>
             <div>
               <label className="label">Descrição</label>
-              <textarea className="input resize-none" rows={2} value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} />
+              <textarea className="input resize-none" rows={2} value={form.descricao}
+                onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Cliente</label>
-                <select className="input" value={form.cliente_id} onChange={e => setForm(f => ({ ...f, cliente_id: e.target.value }))}>
+                <select className="input" value={form.cliente_id}
+                  onChange={e => setForm(f => ({ ...f, cliente_id: e.target.value }))}>
                   <option value="">Sem cliente</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Prazo</label>
-                <input className="input" type="date" value={form.prazo} onChange={e => setForm(f => ({ ...f, prazo: e.target.value }))} />
+                <input className="input" type="date" value={form.prazo}
+                  onChange={e => setForm(f => ({ ...f, prazo: e.target.value }))} />
               </div>
             </div>
 
@@ -292,7 +309,6 @@ export default function TarefasPage() {
               </div>
             )}
 
-            {/* Visível para cliente */}
             <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
               <input type="checkbox" id="visivel_cliente" checked={form.visivel_cliente}
                 onChange={e => setForm(f => ({ ...f, visivel_cliente: e.target.checked }))}
@@ -305,7 +321,7 @@ export default function TarefasPage() {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-2 pb-2">
               <button onClick={() => { setModalAberto(false); setEditando(null) }} className="btn-secondary flex-1">Cancelar</button>
               <button onClick={salvar} className="btn-primary flex-1 justify-center">
                 {editando ? 'Salvar alterações' : 'Criar tarefa'}
