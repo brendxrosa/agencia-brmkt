@@ -8,12 +8,12 @@ import {
   Calendar, CheckSquare, MessageCircle, HelpCircle, LogOut,
   CalendarDays, FileText, LayoutDashboard, User, Menu, X
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const navItems = [
   { href: '/cliente', label: 'Início', icon: LayoutDashboard },
   { href: '/cliente/calendario', label: 'Calendário', icon: Calendar },
-  { href: '/cliente/aprovacoes', label: 'Aprovações', icon: CheckSquare },
+  { href: '/cliente/aprovacoes', label: 'Aprovações', icon: CheckSquare, badge: true },
   { href: '/cliente/agenda', label: 'Agenda', icon: CalendarDays },
   { href: '/cliente/mensagens', label: 'Mensagens', icon: MessageCircle },
   { href: '/cliente/docs', label: 'Documentos', icon: FileText },
@@ -27,6 +27,26 @@ export default function ClienteNav({ profile }: { profile: any }) {
   const router = useRouter()
   const supabase = createClient()
   const [mobileAberto, setMobileAberto] = useState(false)
+  const [pendentes, setPendentes] = useState(0)
+
+  const cliente = profile?.clientes
+  const cor = cliente?.cor || '#6B0F2A'
+
+  useEffect(() => {
+    async function contarPendentes() {
+      if (!cliente?.id) return
+      const [{ count: posts }, { count: docs }] = await Promise.all([
+        supabase.from('posts').select('*', { count: 'exact', head: true })
+          .eq('cliente_id', cliente.id).eq('status_interno', 'aguardando_cliente'),
+        supabase.from('docs').select('*', { count: 'exact', head: true })
+          .eq('cliente_id', cliente.id).eq('status_aprovacao', 'aguardando')
+      ])
+      setPendentes((posts || 0) + (docs || 0))
+    }
+    contarPendentes()
+    const interval = setInterval(contarPendentes, 30000)
+    return () => clearInterval(interval)
+  }, [cliente?.id])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -61,14 +81,19 @@ export default function ClienteNav({ profile }: { profile: any }) {
 
             {/* Nav desktop */}
             <nav className="hidden md:flex items-center gap-0.5">
-              {navItems.map(({ href, label, icon: Icon }) => (
+              {navItems.map(({ href, label, icon: Icon, badge }: any) => (
                 <Link key={href} href={href}
                   className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all',
+                    'relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all',
                     isActive(href) ? 'bg-vinho text-white' : 'text-gray-500 hover:bg-creme hover:text-gray-700'
                   )}>
                   <Icon size={14} />
                   <span>{label}</span>
+                  {badge && pendentes > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rosa rounded-full text-white text-xs font-bold flex items-center justify-center">
+                      {pendentes > 9 ? '9+' : pendentes}
+                    </span>
+                  )}
                 </Link>
               ))}
             </nav>
@@ -121,15 +146,20 @@ export default function ClienteNav({ profile }: { profile: any }) {
 
         {/* Links */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map(({ href, label, icon: Icon }) => (
+          {navItems.map(({ href, label, icon: Icon, badge }: any) => (
             <Link key={href} href={href}
               onClick={() => setMobileAberto(false)}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all',
+                'relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all',
                 isActive(href) ? 'bg-vinho text-white' : 'text-gray-600 hover:bg-creme'
               )}>
               <Icon size={18} />
               {label}
+              {badge && pendentes > 0 && (
+                <span className="ml-auto w-5 h-5 bg-rosa rounded-full text-white text-xs font-bold flex items-center justify-center">
+                  {pendentes > 9 ? '9+' : pendentes}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
