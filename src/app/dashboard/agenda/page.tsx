@@ -315,6 +315,7 @@ function AgendaContent() {
           }} className="btn-secondary flex items-center gap-2 text-sm text-gray-600">
             🚫 Bloquear dia
           </button>
+          <button onClick={sincronizarComGoogle} disabled={sincronizando}
             className={cn('btn-secondary flex items-center gap-2 text-sm', googleConectado ? 'text-emerald-700 border-emerald-200' : '')}>
             <RefreshCw size={14} className={sincronizando ? 'animate-spin' : ''} />
             {googleConectado
