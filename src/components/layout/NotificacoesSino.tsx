@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Bell, MessageCircle, CheckSquare, DollarSign, Calendar, AlertTriangle, X } from 'lucide-react'
 import { differenceInDays, parseISO } from 'date-fns'
 import Link from 'next/link'
@@ -13,7 +13,6 @@ interface Notificacao {
   titulo: string
   descricao: string
   href: string
-  lida: boolean
   data: string
 }
 
@@ -25,145 +24,136 @@ const TIPO_CONFIG = {
   contrato: { icon: AlertTriangle, cor: 'text-orange-500 bg-orange-50' },
 }
 
+const LIDAS_KEY = 'notificacoes_lidas'
+
+function getLidas(): string[] {
+  try { return JSON.parse(localStorage.getItem(LIDAS_KEY) || '[]') } catch { return [] }
+}
+function salvarLidas(ids: string[]) {
+  try { localStorage.setItem(LIDAS_KEY, JSON.stringify(ids)) } catch {}
+}
+
 export default function NotificacoesSino() {
   const supabase = createClient()
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
+  const [lidas, setLidas] = useState<string[]>([])
   const [aberto, setAberto] = useState(false)
-  const [lidas, setLidas] = useState<Set<string>>(new Set<string>())
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setLidas(getLidas())
+  }, [])
 
   async function carregar() {
     const hoje = new Date()
-
     const [
       { data: mensagens },
       { data: posts },
       { data: pagamentos },
       { data: eventos },
       { data: clientes },
+      { data: docs },
     ] = await Promise.all([
       supabase.from('mensagens').select('*, clientes(nome)').eq('lida', false).neq('autor_role', 'admin').order('created_at', { ascending: false }).limit(5),
       supabase.from('posts').select('*, clientes(nome)').eq('status_interno', 'aguardando_cliente').order('created_at', { ascending: false }).limit(5),
       supabase.from('pagamentos').select('*, clientes(nome)').eq('status', 'atrasado').limit(5),
       supabase.from('eventos').select('*, clientes(nome)').eq('status', 'pendente').limit(5),
       supabase.from('clientes').select('id, nome, data_fim_contrato').eq('status', 'ativo'),
+      supabase.from('docs').select('*, clientes(nome)').eq('status_aprovacao', 'aguardando').limit(5),
     ])
 
     const lista: Notificacao[] = []
 
-    // Mensagens não lidas
+    // Mensagens agrupadas por cliente
     const grupos: Record<string, any[]> = {}
     ;(mensagens || []).forEach(m => {
       if (!grupos[m.cliente_id]) grupos[m.cliente_id] = []
       grupos[m.cliente_id].push(m)
     })
     Object.entries(grupos).forEach(([clienteId, msgs]) => {
-      const nome = msgs[0].clientes?.nome || 'Cliente'
       lista.push({
         id: `msg-${clienteId}`,
         tipo: 'mensagem',
-        titulo: `${msgs.length} mensagem(ns) de ${nome}`,
+        titulo: `${msgs.length} mensagem(ns) de ${msgs[0].clientes?.nome || 'Cliente'}`,
         descricao: msgs[0].conteudo?.slice(0, 60) + '...',
         href: '/dashboard',
-        lida: false,
         data: msgs[0].created_at,
       })
     })
 
-    // Posts aguardando aprovação
-    ;(posts || []).forEach(p => {
-      lista.push({
-        id: `post-${p.id}`,
-        tipo: 'aprovacao',
-        titulo: `Post aguardando aprovação`,
-        descricao: `${p.titulo} — ${p.clientes?.nome}`,
-        href: '/dashboard/kanban',
-        lida: false,
-        data: p.created_at,
-      })
-    })
+    ;(posts || []).forEach(p => lista.push({
+      id: `post-${p.id}`, tipo: 'aprovacao',
+      titulo: 'Post aguardando aprovação',
+      descricao: `${p.titulo} — ${p.clientes?.nome}`,
+      href: '/dashboard/kanban', data: p.created_at,
+    }))
 
-    // Pagamentos atrasados
-    ;(pagamentos || []).forEach(p => {
-      lista.push({
-        id: `pag-${p.id}`,
-        tipo: 'pagamento',
-        titulo: `Pagamento atrasado`,
-        descricao: `${p.clientes?.nome} — R$ ${p.valor?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-        href: '/dashboard/financeiro',
-        lida: false,
-        data: p.vencimento,
-      })
-    })
+    ;(docs || []).forEach(d => lista.push({
+      id: `doc-${d.id}`, tipo: 'aprovacao',
+      titulo: 'Documento aguardando aprovação',
+      descricao: `${d.titulo} — ${d.clientes?.nome}`,
+      href: '/dashboard/docs', data: d.updated_at,
+    }))
 
-    // Eventos pendentes
-    ;(eventos || []).forEach(e => {
-      lista.push({
-        id: `evento-${e.id}`,
-        tipo: 'evento',
-        titulo: `Solicitação de evento`,
-        descricao: `${e.titulo} — ${e.clientes?.nome}`,
-        href: '/dashboard/agenda',
-        lida: false,
-        data: e.data_inicio,
-      })
-    })
+    ;(pagamentos || []).forEach(p => lista.push({
+      id: `pag-${p.id}`, tipo: 'pagamento',
+      titulo: 'Pagamento atrasado',
+      descricao: `${p.clientes?.nome} — R$ ${p.valor?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      href: '/dashboard/financeiro', data: p.vencimento,
+    }))
 
-    // Contratos vencendo
+    ;(eventos || []).forEach(e => lista.push({
+      id: `evento-${e.id}`, tipo: 'evento',
+      titulo: 'Solicitação de evento pendente',
+      descricao: `${e.titulo} — ${e.clientes?.nome}`,
+      href: '/dashboard/agenda', data: e.data_inicio,
+    }))
+
+    // Contratos vencendo em 15 dias
     ;(clientes || []).forEach(c => {
       if (!c.data_fim_contrato) return
       const dias = differenceInDays(parseISO(c.data_fim_contrato), hoje)
-      if (dias >= 0 && dias <= 30) {
+      if (dias >= 0 && dias <= 15) {
         lista.push({
-          id: `contrato-${c.id}`,
-          tipo: 'contrato',
+          id: `contrato-${c.id}`, tipo: 'contrato',
           titulo: `Contrato vencendo em ${dias} dia(s)`,
           descricao: c.nome,
-          href: '/dashboard/clientes',
-          lida: false,
-          data: c.data_fim_contrato,
+          href: '/dashboard/clientes', data: c.data_fim_contrato,
         })
       }
     })
 
-    // Ordena por data mais recente
     lista.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-
     setNotificacoes(lista)
   }
 
   useEffect(() => { carregar() }, [])
-
-  // Polling a cada 30 segundos
   useEffect(() => {
     const interval = setInterval(carregar, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  // Fecha ao clicar fora
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setAberto(false)
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const naoLidas = notificacoes.filter(n => !lidas.has(n.id)).length
+  const naoLidas = notificacoes.filter(n => !lidas.includes(n.id)).length
 
- function marcarLida(id: string) {
-  setLidas(prev => {
-    const novo = new Set(Array.from(prev))
-    novo.add(id)
-    return novo
-  })
-}
-  
+  function marcarLida(id: string) {
+    const novas = lidas.includes(id) ? lidas : [...lidas, id]
+    setLidas(novas)
+    salvarLidas(novas)
+  }
+
   function marcarTodasLidas() {
-  setLidas(new Set(notificacoes.map(n => n.id)))
-}
+    const ids = notificacoes.map(n => n.id)
+    setLidas(ids)
+    salvarLidas(ids)
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -203,7 +193,7 @@ export default function NotificacoesSino() {
               notificacoes.map(n => {
                 const config = TIPO_CONFIG[n.tipo]
                 const Icon = config.icon
-                const lida = lidas.has(n.id)
+                const lida = lidas.includes(n.id)
                 return (
                   <Link key={n.id} href={n.href}
                     onClick={() => { marcarLida(n.id); setAberto(false) }}
@@ -226,11 +216,9 @@ export default function NotificacoesSino() {
           </div>
 
           {notificacoes.length > 0 && (
-            <div className="px-4 py-2 border-t border-gray-100">
+            <div className="px-4 py-2 border-t border-gray-100 text-center">
               <button onClick={() => { marcarTodasLidas(); setAberto(false) }}
-                className="text-xs text-gray-400 hover:text-gray-600 w-full text-center">
-                Fechar
-              </button>
+                className="text-xs text-gray-400 hover:text-gray-600">Fechar</button>
             </div>
           )}
         </div>
