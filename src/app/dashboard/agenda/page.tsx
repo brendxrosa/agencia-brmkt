@@ -107,22 +107,28 @@ function AgendaContent() {
   const [sucesso, setSucesso] = useState('')
   const [form, setForm] = useState(formVazio)
   const [formEditar, setFormEditar] = useState(formVazio)
+  const [diasBloqueados, setDiasBloqueados] = useState<any[]>([])
+  const [modalBloquear, setModalBloquear] = useState(false)
+  const [motivoBloqueio, setMotivoBloqueio] = useState('')
+  const [dataBloqueio, setDataBloqueio] = useState('')
 
   async function carregar() {
     const inicio = format(startOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const fim = format(endOfMonth(mesSelecionado), 'yyyy-MM-dd')
     const { data: { user } } = await supabase.auth.getUser()
 
-    const [{ data: e }, { data: c }, googleStatus] = await Promise.all([
+    const [{ data: e }, { data: c }, googleStatus, { data: db }] = await Promise.all([
       supabase.from('eventos').select('*, clientes(nome, cor)')
         .gte('data_inicio', inicio).lte('data_inicio', fim + 'T23:59:59').order('data_inicio'),
       supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome'),
-      fetch('/api/google-status').then(r => r.json()).catch(() => ({ conectado: false }))
+      fetch('/api/google-status').then(r => r.json()).catch(() => ({ conectado: false })),
+      supabase.from('dias_bloqueados').select('*').gte('data', inicio).lte('data', fim)
     ])
 
     setEventos(e || [])
     setClientes(c || [])
     setGoogleConectado(!!googleStatus?.conectado)
+    setDiasBloqueados(db || [])
     setLoading(false)
   }
 
@@ -210,6 +216,23 @@ function AgendaContent() {
     carregar()
   }
 
+  async function bloquearDia() {
+    if (!dataBloqueio) return
+    await supabase.from('dias_bloqueados').insert({
+      data: dataBloqueio,
+      motivo: motivoBloqueio || null
+    })
+    setModalBloquear(false)
+    setDataBloqueio('')
+    setMotivoBloqueio('')
+    carregar()
+  }
+
+  async function desbloquearDia(data: string) {
+    await supabase.from('dias_bloqueados').delete().eq('data', data)
+    carregar()
+  }
+
   async function sincronizarComGoogle() {
     if (!googleConectado) { window.location.href = '/api/auth/google'; return }
     setSincronizando(true)
@@ -286,7 +309,12 @@ function AgendaContent() {
           <p className="text-gray-500 text-sm mt-1">Horário comercial 8h–18h · Seg–Sex</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={sincronizarComGoogle} disabled={sincronizando}
+          <button onClick={() => {
+            setDataBloqueio(diaSelecionado ? format(diaSelecionado, 'yyyy-MM-dd') : '')
+            setModalBloquear(true)
+          }} className="btn-secondary flex items-center gap-2 text-sm text-gray-600">
+            🚫 Bloquear dia
+          </button>
             className={cn('btn-secondary flex items-center gap-2 text-sm', googleConectado ? 'text-emerald-700 border-emerald-200' : '')}>
             <RefreshCw size={14} className={sincronizando ? 'animate-spin' : ''} />
             {googleConectado
@@ -330,10 +358,11 @@ function AgendaContent() {
               const hoje = isToday(dia)
               const fds = dia.getDay() === 0 || dia.getDay() === 6
               const temPendente = evs.some(e => e.status === 'pendente')
+              const ehBloqueado = diasBloqueados.some(d => d.data === format(dia, 'yyyy-MM-dd'))
               return (
                 <button key={dia.toISOString()} onClick={() => setDiaSelecionado(dia)}
                   className={cn('relative p-1.5 rounded-xl text-sm transition-all min-h-12 flex flex-col items-center gap-0.5',
-                    selecionado ? 'bg-vinho text-white' : hoje ? 'bg-rosa-pale text-rosa font-semibold' : 'hover:bg-creme',
+                    selecionado ? 'bg-vinho text-white' : hoje ? 'bg-rosa-pale text-rosa font-semibold' : ehBloqueado ? 'bg-gray-100 text-gray-400' : 'hover:bg-creme',
                     fds && !selecionado && 'text-gray-400')}>
                   <span className="text-xs font-medium">{format(dia, 'd')}</span>
                   {evs.length > 0 && (
@@ -345,6 +374,7 @@ function AgendaContent() {
                     </div>
                   )}
                   {temPendente && !selecionado && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-400 rounded-full" />}
+                  {ehBloqueado && !selecionado && <span className="text-xs">🚫</span>}
                 </button>
               )
             })}
@@ -504,6 +534,48 @@ function AgendaContent() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* Modal bloquear dia */}
+      <Modal open={modalBloquear} onClose={() => setModalBloquear(false)}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-display text-xl font-semibold text-vinho">🚫 Bloquear dia</h2>
+            <button onClick={() => setModalBloquear(false)} className="btn-ghost p-2"><X size={18} /></button>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="label">Data *</label>
+              <input className="input" type="date" value={dataBloqueio} onChange={e => setDataBloqueio(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Motivo (opcional)</label>
+              <input className="input" value={motivoBloqueio} onChange={e => setMotivoBloqueio(e.target.value)} placeholder="Ex: Feriado, Férias, Compromisso..." />
+            </div>
+            {diasBloqueados.length > 0 && (
+              <div>
+                <p className="label mb-2">Dias bloqueados neste mês</p>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {diasBloqueados.map(d => (
+                    <div key={d.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">{format(new Date(d.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}</p>
+                        {d.motivo && <p className="text-xs text-gray-400">{d.motivo}</p>}
+                      </div>
+                      <button onClick={() => desbloquearDia(d.data)} className="text-xs text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg">
+                        Desbloquear
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex gap-3 pb-2">
+              <button onClick={() => setModalBloquear(false)} className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={bloquearDia} className="btn-primary flex-1 justify-center">Bloquear</button>
+            </div>
+          </div>
+        </div>
       </Modal>
 
       <Modal open={modalAberto} onClose={() => setModalAberto(false)}>
