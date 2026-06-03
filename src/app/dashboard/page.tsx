@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
     supabase.from('pagamentos').select('*, clientes(nome)').eq('status', 'pendente').order('vencimento').limit(5),
-    supabase.from('tarefas').select('*').eq('status', 'pendente').not('prazo', 'is', null).order('prazo').limit(5),    
+    supabase.from('tarefas').select('*').eq('status', 'pendente').eq('prioridade', 'urgente').limit(5),
     supabase.from('posts').select('*, clientes(nome, cor)').eq('status_cliente', 'pendente').limit(5),
     supabase.from('eventos').select('*, clientes(nome)').gte('data_inicio', new Date().toISOString()).order('data_inicio').limit(5),
     supabase.from('clientes').select('id, nome, cor, data_fim_contrato').eq('status', 'ativo'),
@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   const contratosVencendo = (todosClientes || []).filter((c: any) => {
     if (!c.data_fim_contrato) return false
     const dias = differenceInDays(parseISO(c.data_fim_contrato), hoje)
-    return dias >= 0 && dias <= 30
+    return dias >= 0 && dias <= 15
   })
 
   const cards = [
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
               <div className="flex items-center gap-2 mb-3">
                 <AlertTriangle size={18} className="text-orange-500" />
                 <h3 className="font-semibold text-orange-700 text-sm">
-                  {contratosVencendo.length} contrato(s) vencendo em até 30 dias
+                  {contratosVencendo.length} contrato(s) vencendo em até 15 dias
                 </h3>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -203,8 +203,8 @@ export default async function DashboardPage() {
         <div className="card border-l-4 border-l-red-500">
           <div className="flex items-center justify-between mb-3">
             <h3 className="section-title text-base flex items-center gap-2">
-             <Clock size={18} className="text-orange-500" /> Próximas tarefas
-              </h3>
+              <AlertCircle size={18} className="text-red-500" /> Tarefas urgentes
+            </h3>
             <Link href="/dashboard/tarefas" className="text-xs text-vinho hover:underline">Ver todas</Link>
           </div>
           <div className="flex flex-wrap gap-2">
