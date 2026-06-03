@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, X, Search, FileText, Bold, Italic, Underline, Link, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle } from 'lucide-react'
+import { Plus, X, Search, FileText, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -144,43 +144,6 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   )
 }
 
-function RichTextEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const editorRef = useRef<HTMLDivElement>(null)
-  function execCmd(cmd: string, val?: string) {
-    document.execCommand(cmd, false, val)
-    editorRef.current?.focus()
-    if (editorRef.current) onChange(editorRef.current.innerHTML)
-  }
-  function handleInput() { if (editorRef.current) onChange(editorRef.current.innerHTML) }
-  function handleLink() { const url = prompt('Cole o link:'); if (url) execCmd('createLink', url) }
-  return (
-    <div className="border border-gray-200 rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-1 px-3 py-2 bg-creme border-b border-gray-200 flex-wrap">
-        <button type="button" onClick={() => execCmd('bold')} className="p-1.5 rounded-lg hover:bg-white transition-colors"><Bold size={14} /></button>
-        <button type="button" onClick={() => execCmd('italic')} className="p-1.5 rounded-lg hover:bg-white transition-colors"><Italic size={14} /></button>
-        <button type="button" onClick={() => execCmd('underline')} className="p-1.5 rounded-lg hover:bg-white transition-colors"><Underline size={14} /></button>
-        <div className="w-px h-5 bg-gray-200 mx-1" />
-        <select onChange={e => execCmd('fontSize', e.target.value)} defaultValue="3" className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white">
-          <option value="1">Pequeno</option><option value="3">Normal</option><option value="5">Grande</option><option value="7">Enorme</option>
-        </select>
-        <div className="w-px h-5 bg-gray-200 mx-1" />
-        <button type="button" onClick={() => execCmd('insertUnorderedList')} className="px-2 py-1 rounded-lg hover:bg-white text-xs">• Lista</button>
-        <button type="button" onClick={() => execCmd('insertOrderedList')} className="px-2 py-1 rounded-lg hover:bg-white text-xs">1. Numerada</button>
-        <div className="w-px h-5 bg-gray-200 mx-1" />
-        {['#6B0F2A','#C2185B','#2E7D32','#1565C0','#E65100','#000000'].map(cor => (
-          <button key={cor} type="button" onClick={() => execCmd('foreColor', cor)}
-            className="w-5 h-5 rounded-full border border-white shadow-sm flex-shrink-0" style={{ backgroundColor: cor }} />
-        ))}
-        <div className="w-px h-5 bg-gray-200 mx-1" />
-        <button type="button" onClick={handleLink} className="p-1.5 rounded-lg hover:bg-white transition-colors"><Link size={14} /></button>
-      </div>
-      <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={handleInput}
-        dangerouslySetInnerHTML={{ __html: value }}
-        className="min-h-48 p-4 text-sm text-gray-700 focus:outline-none leading-relaxed" style={{ wordBreak: 'break-word' }} />
-    </div>
-  )
-}
-
 export default function DocsPage() {
   const supabase = createClient()
   const [docs, setDocs] = useState<any[]>([])
@@ -261,6 +224,9 @@ export default function DocsPage() {
 
   async function salvar(enviarParaAprovacao = false) {
     if (!form.titulo) return alert('Título é obrigatório!')
+    if (!form.conteudo && !form.link_arquivo && !form.drive_url) {
+      return alert('Adicione pelo menos uma descrição, arquivo ou link do Drive!')
+    }
     setSalvando(true)
     const dados = {
       titulo: form.titulo, tipo: form.tipo,
@@ -512,7 +478,13 @@ export default function DocsPage() {
                 {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
             </div>
-            <div><label className="label">Conteúdo</label><RichTextEditor value={form.conteudo} onChange={v => setForm(f => ({ ...f, conteudo: v }))} /></div>
+            <div>
+              <label className="label">Descrição / Notas</label>
+              <textarea className="input resize-none" rows={4}
+                value={form.conteudo}
+                onChange={e => setForm(f => ({ ...f, conteudo: e.target.value }))}
+                placeholder="Observações, descrição ou contexto do documento..." />
+            </div>
             <div><label className="label">Link do Google Drive</label><input className="input" value={form.drive_url} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))} placeholder="https://drive.google.com/..." /></div>
             <div>
               <label className="label">Arquivo anexo</label>
