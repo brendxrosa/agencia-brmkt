@@ -402,7 +402,34 @@ export default function DocsPage() {
               </div>
               <button onClick={() => setDocVisualizar(null)} className="btn-ghost p-2"><X size={18} /></button>
             </div>
-            {docVisualizar.link_arquivo && <a href={docVisualizar.link_arquivo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-vinho hover:underline mb-3">📎 Ver arquivo anexo</a>}
+            {docVisualizar.link_arquivo && (
+              <div className="mb-4">
+                {/\.(pdf)$/i.test(docVisualizar.link_arquivo) ? (
+                  <div className="rounded-xl overflow-hidden border border-gray-200">
+                    <div className="flex items-center justify-between px-3 py-2 bg-creme border-b border-gray-200">
+                      <span className="text-xs font-medium text-gray-600">📄 Visualizando PDF</span>
+                      <a href={docVisualizar.link_arquivo} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-vinho hover:underline">Abrir em nova aba ↗</a>
+                    </div>
+                    <iframe src={docVisualizar.link_arquivo} className="w-full h-96" title="Preview do documento" />
+                  </div>
+                ) : /\.(png|jpg|jpeg|gif|webp)$/i.test(docVisualizar.link_arquivo) ? (
+                  <div className="rounded-xl overflow-hidden border border-gray-200">
+                    <div className="flex items-center justify-between px-3 py-2 bg-creme border-b border-gray-200">
+                      <span className="text-xs font-medium text-gray-600">🖼 Imagem</span>
+                      <a href={docVisualizar.link_arquivo} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-vinho hover:underline">Abrir em nova aba ↗</a>
+                    </div>
+                    <img src={docVisualizar.link_arquivo} alt="Anexo" className="w-full max-h-96 object-contain bg-gray-50" />
+                  </div>
+                ) : (
+                  <a href={docVisualizar.link_arquivo} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-vinho hover:underline">
+                    📎 Baixar arquivo anexo
+                  </a>
+                )}
+              </div>
+            )}
             {docVisualizar.drive_url && <a href={docVisualizar.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-blue-600 hover:underline mb-3"><ExternalLink size={14} /> Abrir no Drive</a>}
             {docVisualizar.conteudo && <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed mb-4" dangerouslySetInnerHTML={{ __html: docVisualizar.conteudo }} />}
 
