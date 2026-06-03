@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
 import { Plus, X, Search, FileText, Bold, Italic, Underline, Link, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
