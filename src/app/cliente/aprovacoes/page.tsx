@@ -1,37 +1,65 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { CheckCircle, XCircle, Clock, MessageSquare, X, FileText, Kanban } from 'lucide-react'
-import { STATUS_POST_LABELS, STATUS_POST_CORES } from '@/lib/utils'
+import { CheckCircle, XCircle, Clock, MessageCircle, Paperclip, Send, Download, FileText, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { format, parseISO, formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+
+const STATUS_CONFIG = {
+  aguardando: { label: 'Aguardando aprovação', cor: 'bg-orange-100 text-orange-700', icon: Clock },
+  aprovado: { label: 'Aprovado', cor: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
+  reprovado: { label: 'Reprovado', cor: 'bg-red-100 text-red-700', icon: XCircle },
+  rascunho: { label: 'Rascunho', cor: 'bg-gray-100 text-gray-600', icon: Clock },
+}
+
+const TIPO_CORES: Record<string, string> = {
+  briefing: 'bg-blue-100 text-blue-700',
+  estrategia: 'bg-purple-100 text-purple-700',
+  curadoria: 'bg-pink-100 text-pink-700',
+  calendario: 'bg-indigo-100 text-indigo-700',
+  referencia: 'bg-orange-100 text-orange-700',
+  nota: 'bg-gray-100 text-gray-700',
+  contrato: 'bg-emerald-100 text-emerald-700',
+  outro: 'bg-rose-100 text-rose-700',
+}
+
+function getLabelTipo(tipo: string) {
+  return tipo?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Documento'
+}
 
 export default function ClienteAprovacoesPage() {
   const supabase = createClient()
+  const [clienteId, setClienteId] = useState('')
+  const [userId, setUserId] = useState('')
+  const [userName, setUserName] = useState('')
+  const [aba, setAba] = useState<'posts' | 'docs'>('docs')
   const [posts, setPosts] = useState<any[]>([])
   const [docs, setDocs] = useState<any[]>([])
-  const [clienteId, setClienteId] = useState('')
+  const [comentarios, setComentarios] = useState<Record<string, any[]>>({})
+  const [abertos, setAbertos] = useState<string[]>([])
+  const [comentario, setComentario] = useState<Record<string, string>>({})
+  const [enviando, setEnviando] = useState<string | null>(null)
+  const [atualizando, setAtualizando] = useState<string | null>(null)
+  const [uploadando, setUploadando] = useState<string | null>(null)
+  const [arquivoTemp, setArquivoTemp] = useState<Record<string, string>>({})
+  const fileRefs = useRef<Record<string, HTMLInputElement>>({})
   const [loading, setLoading] = useState(true)
-  const [aba, setAba] = useState('posts')
-  const [itemSelecionado, setItemSelecionado] = useState<any>(null)
-  const [feedback, setFeedback] = useState('')
-  const [salvando, setSalvando] = useState(false)
 
   async function carregar() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data: profile } = await supabase.from('profiles').select('cliente_id').eq('id', user.id).single()
+    setUserId(user.id)
+
+    const { data: profile } = await supabase.from('profiles').select('cliente_id, nome').eq('id', user.id).single()
     if (!profile?.cliente_id) return
     setClienteId(profile.cliente_id)
+    setUserName(profile.nome || 'Cliente')
 
     const [{ data: p }, { data: d }] = await Promise.all([
-      supabase.from('posts').select('*')
-        .eq('cliente_id', profile.cliente_id)
-        .in('status_interno', ['aguardando_cliente', 'aprovado', 'reprovado'])
-        .order('created_at', { ascending: false }),
-      supabase.from('aprovacoes_docs').select('*')
-        .eq('cliente_id', profile.cliente_id)
-        .order('created_at', { ascending: false })
+      supabase.from('posts').select('*').eq('cliente_id', profile.cliente_id).eq('status_interno', 'aguardando_cliente').order('created_at', { ascending: false }),
+      supabase.from('docs').select('*').eq('cliente_id', profile.cliente_id).eq('status_aprovacao', 'aguardando').order('updated_at', { ascending: false }),
     ])
 
     setPosts(p || [])
@@ -39,269 +67,310 @@ export default function ClienteAprovacoesPage() {
     setLoading(false)
   }
 
+  async function carregarComentarios(docId: string) {
+    const { data } = await supabase.from('aprovacao_comentarios').select('*').eq('doc_id', docId).order('created_at')
+    setComentarios(prev => ({ ...prev, [docId]: data || [] }))
+  }
+
   useEffect(() => { carregar() }, [])
 
-  async function responderPost(postId: string, status: 'aprovado' | 'reprovado') {
-    setSalvando(true)
-    await supabase.from('posts').update({
-      status_cliente: status,
-      feedback_cliente: feedback || null,
-      status_interno: status
-    }).eq('id', postId)
-    setItemSelecionado(null)
-    setFeedback('')
-    setSalvando(false)
-    carregar()
+  function toggleAberto(id: string) {
+    const novoEstado = abertos.includes(id) ? abertos.filter(x => x !== id) : [...abertos, id]
+    setAbertos(novoEstado)
+    if (!abertos.includes(id)) carregarComentarios(id)
   }
 
-  async function responderDoc(docId: string, status: 'aprovado' | 'reprovado') {
-    setSalvando(true)
-    await supabase.from('aprovacoes_docs').update({
-      status,
-      feedback_cliente: feedback || null,
+  async function aprovarDoc(docId: string, status: 'aprovado' | 'reprovado') {
+    setAtualizando(docId)
+    await supabase.from('docs').update({
+      status_aprovacao: status,
       updated_at: new Date().toISOString()
     }).eq('id', docId)
-    setItemSelecionado(null)
-    setFeedback('')
-    setSalvando(false)
+
+    // Registra no histórico como comentário do sistema
+    await supabase.from('aprovacao_comentarios').insert({
+      doc_id: docId,
+      autor_id: userId,
+      autor_nome: userName,
+      autor_role: 'cliente',
+      conteudo: status === 'aprovado' ? '✅ Documento aprovado.' : '❌ Documento reprovado.',
+    })
+
+    setAtualizando(null)
+    carregar()
+    carregarComentarios(docId)
+  }
+
+  async function aprovarPost(postId: string, status: 'aprovado' | 'reprovado') {
+    setAtualizando(postId)
+    await supabase.from('posts').update({
+      status_cliente: status,
+      status_interno: status === 'aprovado' ? 'aprovado' : 'ajuste_necessario'
+    }).eq('id', postId)
+    setAtualizando(null)
     carregar()
   }
 
-  const postsPendentes = posts.filter(p => p.status_cliente === 'pendente')
-  const postsRespondidos = posts.filter(p => p.status_cliente !== 'pendente')
-  const docsPendentes = docs.filter(d => d.status === 'pendente')
-  const docsRespondidos = docs.filter(d => d.status !== 'pendente')
-  const totalPendentes = postsPendentes.length + docsPendentes.length
+  async function enviarComentario(docId: string) {
+    const texto = comentario[docId]?.trim()
+    const arquivo = arquivoTemp[docId]
+    if (!texto && !arquivo) return
+
+    setEnviando(docId)
+    await supabase.from('aprovacao_comentarios').insert({
+      doc_id: docId,
+      autor_id: userId,
+      autor_nome: userName,
+      autor_role: 'cliente',
+      conteudo: texto || null,
+      arquivo_url: arquivo || null,
+    })
+    setComentario(prev => ({ ...prev, [docId]: '' }))
+    setArquivoTemp(prev => ({ ...prev, [docId]: '' }))
+    setEnviando(null)
+    carregarComentarios(docId)
+  }
+
+  async function handleUploadComentario(docId: string, file: File) {
+    setUploadando(docId)
+    const path = `comentarios/${Date.now()}-${file.name}`
+    const { error } = await supabase.storage.from('docs').upload(path, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('docs').getPublicUrl(path)
+      setArquivoTemp(prev => ({ ...prev, [docId]: data.publicUrl }))
+    }
+    setUploadando(null)
+  }
+
+  const totalPendente = posts.length + docs.length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <h1 className="page-title">Aprovações</h1>
-        <p className="text-gray-500 text-sm mt-1">{totalPendentes} item(s) aguardando sua aprovação</p>
+        <p className="text-gray-500 text-sm mt-1">{totalPendente} item(s) aguardando sua aprovação</p>
       </div>
 
       {/* Abas */}
       <div className="flex gap-1 bg-creme rounded-xl p-1">
-        <button onClick={() => setAba('posts')}
-          className={cn('flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2',
-            aba === 'posts' ? 'bg-white shadow-card text-vinho' : 'text-gray-500 hover:text-gray-700')}>
-          <Kanban size={14} /> Posts
-          {postsPendentes.length > 0 && (
-            <span className="w-5 h-5 bg-rosa rounded-full text-xs text-white flex items-center justify-center">
-              {postsPendentes.length}
-            </span>
-          )}
-        </button>
         <button onClick={() => setAba('docs')}
-          className={cn('flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2',
-            aba === 'docs' ? 'bg-white shadow-card text-vinho' : 'text-gray-500 hover:text-gray-700')}>
-          <FileText size={14} /> Estratégias
-          {docsPendentes.length > 0 && (
-            <span className="w-5 h-5 bg-rosa rounded-full text-xs text-white flex items-center justify-center">
-              {docsPendentes.length}
-            </span>
-          )}
+          className={cn('flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all',
+            aba === 'docs' ? 'bg-white shadow-card text-vinho' : 'text-gray-500')}>
+          <FileText size={15} /> Documentos {docs.length > 0 && <span className="badge bg-orange-100 text-orange-700 text-xs">{docs.length}</span>}
+        </button>
+        <button onClick={() => setAba('posts')}
+          className={cn('flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all',
+            aba === 'posts' ? 'bg-white shadow-card text-vinho' : 'text-gray-500')}>
+          <CheckCircle size={15} /> Posts {posts.length > 0 && <span className="badge bg-orange-100 text-orange-700 text-xs">{posts.length}</span>}
         </button>
       </div>
 
       {loading ? (
         <div className="space-y-3">{[1,2].map(i => <div key={i} className="card h-24 animate-pulse bg-creme" />)}</div>
-      ) : (
-        <>
-          {/* ABA POSTS */}
-          {aba === 'posts' && (
-            <div className="space-y-4">
-              {postsPendentes.length > 0 && (
-                <div className="space-y-3">
-                  <h2 className="section-title text-sm flex items-center gap-2">
-                    <Clock size={16} className="text-orange-500" /> Aguardando aprovação
-                  </h2>
-                  {postsPendentes.map(post => (
-                    <div key={post.id} className="card border-l-4 border-l-orange-400">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-800">{post.titulo}</p>
-                          <p className="text-xs text-gray-400 capitalize mt-0.5">{post.tipo}</p>
-                          {post.copy && (
-                            <div className="mt-3 bg-creme rounded-xl p-3">
-                              <p className="text-xs font-medium text-gray-500 mb-1">Copy/Roteiro:</p>
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.copy}</p>
-                            </div>
-                          )}
-                          {post.legenda && (
-                            <div className="mt-2 bg-creme rounded-xl p-3">
-                              <p className="text-xs font-medium text-gray-500 mb-1">Legenda:</p>
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.legenda}</p>
-                            </div>
-                          )}
-                          {post.link_midia && (
-                            <a href={post.link_midia} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 mt-2 text-xs text-vinho hover:underline">
-                              📎 Ver mídia/arquivo
-                            </a>
-                          )}
-                        </div>
-                      </div>
+      ) : aba === 'docs' ? (
+        docs.length === 0 ? (
+          <div className="card text-center py-16">
+            <CheckCircle size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500">Nenhum documento aguardando aprovação 🎉</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {docs.map(doc => {
+              const aberto = abertos.includes(doc.id)
+              const coments = comentarios[doc.id] || []
+              const statusConfig = STATUS_CONFIG[doc.status_aprovacao as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.aguardando
+              const Icon = statusConfig.icon
 
-                      {itemSelecionado?.id === post.id ? (
-                        <div className="mt-4 space-y-3">
-                          <div>
-                            <label className="label">Feedback (opcional para aprovação)</label>
-                            <textarea className="input resize-none" rows={3} value={feedback}
-                              onChange={e => setFeedback(e.target.value)}
-                              placeholder="Deixe um comentário..." />
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => { setItemSelecionado(null); setFeedback('') }} className="btn-ghost flex-1">Cancelar</button>
-                            <button onClick={() => responderPost(post.id, 'reprovado')} disabled={salvando}
-                              className="flex-1 bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-700 transition-all flex items-center justify-center gap-2">
-                              <XCircle size={16} /> Reprovar
-                            </button>
-                            <button onClick={() => responderPost(post.id, 'aprovado')} disabled={salvando}
-                              className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
-                              <CheckCircle size={16} /> Aprovar
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button onClick={() => setItemSelecionado(post)}
-                          className="mt-4 btn-primary w-full justify-center flex items-center gap-2">
-                          <MessageSquare size={16} /> Analisar e responder
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {postsRespondidos.length > 0 && (
-                <div className="space-y-2">
-                  <h2 className="section-title text-sm">Histórico de posts</h2>
-                  {postsRespondidos.map(post => (
-                    <div key={post.id} className={cn('card border-l-4', {
-                      'border-l-emerald-400': post.status_cliente === 'aprovado',
-                      'border-l-red-400': post.status_cliente === 'reprovado',
-                    })}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-800">{post.titulo}</p>
-                          <p className="text-xs text-gray-400 capitalize">{post.tipo}</p>
-                          {post.feedback_cliente && <p className="text-xs text-gray-500 mt-1 italic">"{post.feedback_cliente}"</p>}
-                        </div>
-                        <span className={cn('badge text-xs flex items-center gap-1', {
-                          'bg-emerald-100 text-emerald-700': post.status_cliente === 'aprovado',
-                          'bg-red-100 text-red-700': post.status_cliente === 'reprovado',
-                        })}>
-                          {post.status_cliente === 'aprovado' ? <><CheckCircle size={11} /> Aprovado</> : <><XCircle size={11} /> Reprovado</>}
+              return (
+                <div key={doc.id} className="card">
+                  {/* Header */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-gray-800">{doc.titulo}</p>
+                        <span className={cn('badge text-xs', TIPO_CORES[doc.tipo] || 'bg-gray-100 text-gray-600')}>
+                          {getLabelTipo(doc.tipo)}
+                        </span>
+                        <span className={cn('badge text-xs flex items-center gap-1', statusConfig.cor)}>
+                          <Icon size={10} /> {statusConfig.label}
                         </span>
                       </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Enviado {formatDistanceToNow(parseISO(doc.updated_at), { addSuffix: true, locale: ptBR })}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <button onClick={() => toggleAberto(doc.id)} className="btn-ghost p-1.5 flex-shrink-0">
+                      {aberto ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                  </div>
 
-              {posts.length === 0 && (
-                <div className="card text-center py-16">
-                  <CheckCircle size={40} className="mx-auto mb-3 text-gray-200" />
-                  <p className="text-gray-500">Nenhum post para aprovar no momento</p>
-                </div>
-              )}
-            </div>
-          )}
+                  {aberto && (
+                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+                      {/* Conteúdo do doc */}
+                      {doc.conteudo && (
+                        <div className="prose prose-sm max-w-none text-gray-700 bg-creme/50 rounded-xl p-4"
+                          dangerouslySetInnerHTML={{ __html: doc.conteudo }} />
+                      )}
 
-          {/* ABA DOCS/ESTRATÉGIA */}
-          {aba === 'docs' && (
-            <div className="space-y-4">
-              {docsPendentes.length > 0 && (
-                <div className="space-y-3">
-                  <h2 className="section-title text-sm flex items-center gap-2">
-                    <Clock size={16} className="text-orange-500" /> Aguardando aprovação
-                  </h2>
-                  {docsPendentes.map(doc => (
-                    <div key={doc.id} className="card border-l-4 border-l-purple-400">
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-800">{doc.titulo}</p>
-                        {doc.descricao && <p className="text-xs text-gray-400 mt-0.5">{doc.descricao}</p>}
-                        {doc.conteudo && (
-                          <div className="mt-3 bg-creme rounded-xl p-3 max-h-48 overflow-y-auto">
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{doc.conteudo}</p>
-                          </div>
-                        )}
+                      {/* Links */}
+                      <div className="flex gap-3 flex-wrap">
                         {doc.link_arquivo && (
                           <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 mt-2 text-xs text-vinho hover:underline">
-                            📎 Ver arquivo completo
+                            className="flex items-center gap-1.5 text-sm text-vinho hover:underline">
+                            <Download size={14} /> Baixar arquivo
                           </a>
                         )}
-                        <p className="text-xs text-gray-400 mt-2">{formatDate(doc.created_at)}</p>
+                        {doc.drive_url && (
+                          <a href={doc.drive_url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+                            <Download size={14} /> Abrir no Drive
+                          </a>
+                        )}
                       </div>
 
-                      {itemSelecionado?.id === doc.id ? (
-                        <div className="mt-4 space-y-3">
-                          <div>
-                            <label className="label">Feedback</label>
-                            <textarea className="input resize-none" rows={3} value={feedback}
-                              onChange={e => setFeedback(e.target.value)}
-                              placeholder="Deixe um comentário sobre a estratégia..." />
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => { setItemSelecionado(null); setFeedback('') }} className="btn-ghost flex-1">Cancelar</button>
-                            <button onClick={() => responderDoc(doc.id, 'reprovado')} disabled={salvando}
-                              className="flex-1 bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-700 transition-all flex items-center justify-center gap-2">
-                              <XCircle size={16} /> Solicitar ajuste
-                            </button>
-                            <button onClick={() => responderDoc(doc.id, 'aprovado')} disabled={salvando}
-                              className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
-                              <CheckCircle size={16} /> Aprovar
-                            </button>
-                          </div>
+                      {/* Botões aprovação */}
+                      {doc.status_aprovacao === 'aguardando' && (
+                        <div className="flex gap-3">
+                          <button onClick={() => aprovarDoc(doc.id, 'reprovado')} disabled={atualizando === doc.id}
+                            className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl font-medium text-sm hover:bg-red-100 transition-all">
+                            <XCircle size={16} /> Reprovar
+                          </button>
+                          <button onClick={() => aprovarDoc(doc.id, 'aprovado')} disabled={atualizando === doc.id}
+                            className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-emerald-600 transition-all">
+                            <CheckCircle size={16} /> {atualizando === doc.id ? 'Salvando...' : 'Aprovar'}
+                          </button>
                         </div>
-                      ) : (
-                        <button onClick={() => setItemSelecionado(doc)}
-                          className="mt-4 btn-primary w-full justify-center flex items-center gap-2">
-                          <MessageSquare size={16} /> Analisar e responder
-                        </button>
                       )}
-                    </div>
-                  ))}
-                </div>
-              )}
 
-              {docsRespondidos.length > 0 && (
-                <div className="space-y-2">
-                  <h2 className="section-title text-sm">Histórico de estratégias</h2>
-                  {docsRespondidos.map(doc => (
-                    <div key={doc.id} className={cn('card border-l-4', {
-                      'border-l-emerald-400': doc.status === 'aprovado',
-                      'border-l-red-400': doc.status === 'reprovado',
-                    })}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-800">{doc.titulo}</p>
-                          {doc.feedback_cliente && <p className="text-xs text-gray-500 mt-1 italic">"{doc.feedback_cliente}"</p>}
+                      {doc.status_aprovacao !== 'aguardando' && (
+                        <div className={cn('rounded-xl p-3 text-center', statusConfig.cor)}>
+                          <p className="text-sm font-medium flex items-center justify-center gap-2">
+                            <Icon size={14} /> {statusConfig.label}
+                          </p>
                         </div>
-                        <span className={cn('badge text-xs flex items-center gap-1', {
-                          'bg-emerald-100 text-emerald-700': doc.status === 'aprovado',
-                          'bg-red-100 text-red-700': doc.status === 'reprovado',
-                        })}>
-                          {doc.status === 'aprovado' ? <><CheckCircle size={11} /> Aprovado</> : <><XCircle size={11} /> Ajuste solicitado</>}
-                        </span>
+                      )}
+
+                      {/* Comentários */}
+                      <div className="space-y-3">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                          <MessageCircle size={12} /> Comentários e ajustes
+                        </p>
+
+                        {coments.length === 0 ? (
+                          <p className="text-xs text-gray-400">Nenhum comentário ainda. Use o campo abaixo para deixar observações ou pedir ajustes.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {coments.map(c => (
+                              <div key={c.id} className={cn('flex gap-2', c.autor_role === 'cliente' ? 'flex-row-reverse' : 'flex-row')}>
+                                <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0',
+                                  c.autor_role === 'cliente' ? 'bg-vinho' : 'bg-gray-400')}>
+                                  {c.autor_nome?.charAt(0)}
+                                </div>
+                                <div className={cn('max-w-[80%] space-y-1', c.autor_role === 'cliente' ? 'items-end' : 'items-start')}>
+                                  <div className={cn('rounded-2xl px-3 py-2 text-sm',
+                                    c.autor_role === 'cliente' ? 'bg-vinho text-white rounded-tr-sm' : 'bg-creme text-gray-800 rounded-tl-sm')}>
+                                    {c.conteudo && <p>{c.conteudo}</p>}
+                                    {c.arquivo_url && (
+                                      <a href={c.arquivo_url} target="_blank" rel="noopener noreferrer"
+                                        className={cn('flex items-center gap-1.5 text-xs mt-1 hover:underline',
+                                          c.autor_role === 'cliente' ? 'text-white/80' : 'text-vinho')}>
+                                        <Paperclip size={11} /> Ver arquivo anexo
+                                      </a>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-400 px-1">
+                                    {c.autor_nome} · {formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Campo comentário */}
+                        <div className="space-y-2">
+                          {arquivoTemp[doc.id] && (
+                            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                              <Paperclip size={13} className="text-emerald-600" />
+                              <span className="text-xs text-emerald-700 flex-1 truncate">Arquivo pronto para enviar</span>
+                              <button onClick={() => setArquivoTemp(prev => ({ ...prev, [doc.id]: '' }))}
+                                className="text-gray-400 hover:text-red-500"><X size={13} /></button>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <input className="input flex-1 text-sm" value={comentario[doc.id] || ''}
+                              onChange={e => setComentario(prev => ({ ...prev, [doc.id]: e.target.value }))}
+                              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarComentario(doc.id)}
+                              placeholder="Deixe um comentário ou pedido de ajuste..." />
+                            <label className="btn-ghost p-2.5 cursor-pointer" title="Anexar arquivo">
+                              <Paperclip size={16} className={uploadando === doc.id ? 'animate-pulse text-vinho' : 'text-gray-400'} />
+                              <input type="file" className="hidden"
+                                ref={el => { if (el) fileRefs.current[doc.id] = el }}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadComentario(doc.id, f) }} />
+                            </label>
+                            <button onClick={() => enviarComentario(doc.id)} disabled={enviando === doc.id}
+                              className="btn-primary p-2.5">
+                              <Send size={16} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-
-              {docs.length === 0 && (
-                <div className="card text-center py-16">
-                  <FileText size={40} className="mx-auto mb-3 text-gray-200" />
-                  <p className="text-gray-500">Nenhuma estratégia para aprovar</p>
-                  <p className="text-xs text-gray-400 mt-1">A agência enviará documentos aqui quando precisar da sua aprovação</p>
+              )
+            })}
+          </div>
+        )
+      ) : (
+        /* Posts */
+        posts.length === 0 ? (
+          <div className="card text-center py-16">
+            <CheckCircle size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500">Nenhum post aguardando aprovação 🎉</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {posts.map(post => (
+              <div key={post.id} className="card">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-800">{post.titulo}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="badge bg-gray-100 text-gray-600 text-xs">{post.tipo}</span>
+                      <span className="badge bg-orange-100 text-orange-700 text-xs flex items-center gap-1">
+                        <Clock size={10} /> Aguardando aprovação
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-        </>
+                {post.descricao && <p className="text-sm text-gray-600 mb-3">{post.descricao}</p>}
+                {post.legenda && (
+                  <div className="bg-creme rounded-xl p-3 mb-4">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Legenda</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.legenda}</p>
+                  </div>
+                )}
+                {post.link_midia && (
+                  <a href={post.link_midia} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-vinho hover:underline mb-4">
+                    <Download size={14} /> Ver arquivo do post
+                  </a>
+                )}
+                <div className="flex gap-3">
+                  <button onClick={() => aprovarPost(post.id, 'reprovado')} disabled={atualizando === post.id}
+                    className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-3 rounded-xl font-medium text-sm hover:bg-red-100 transition-all">
+                    <XCircle size={16} /> Reprovar
+                  </button>
+                  <button onClick={() => aprovarPost(post.id, 'aprovado')} disabled={atualizando === post.id}
+                    className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-emerald-600 transition-all">
+                    <CheckCircle size={16} /> {atualizando === post.id ? 'Salvando...' : 'Aprovar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   )
