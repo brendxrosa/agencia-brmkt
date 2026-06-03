@@ -212,31 +212,49 @@ export default function DocsPage() {
     setModalAberto(true)
   }
 
+  const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
+
   async function handleUpload(file: File) {
-    setUploadando(true)
+    // Só guarda o arquivo, faz upload quando salvar
+    setArquivoPendente(file)
+    setForm(f => ({ ...f, link_arquivo: file.name })) // mostra nome pro usuário
+  }
+
+  async function uploadArquivo(file: File): Promise<string> {
     const path = `docs/${Date.now()}-${file.name}`
     const { error } = await supabase.storage.from('docs').upload(path, file, { upsert: true })
-    if (error) { alert('Erro no upload: ' + error.message); setUploadando(false); return }
+    if (error) throw new Error('Erro no upload: ' + error.message)
     const { data } = supabase.storage.from('docs').getPublicUrl(path)
-    setForm(f => ({ ...f, link_arquivo: data.publicUrl }))
-    setUploadando(false)
+    return data.publicUrl
   }
 
   async function salvar(enviarParaAprovacao = false) {
     if (!form.titulo) return alert('Título é obrigatório!')
-    if (!form.conteudo && !form.link_arquivo && !form.drive_url) {
-      return alert('Adicione pelo menos uma descrição, arquivo ou link do Drive!')
-    }
     setSalvando(true)
+
+    let linkArquivo = form.link_arquivo || null
+
+    // Se tem arquivo pendente, faz upload agora
+    if (arquivoPendente) {
+      try {
+        linkArquivo = await uploadArquivo(arquivoPendente)
+        setArquivoPendente(null)
+      } catch (err: any) {
+        setSalvando(false)
+        return alert(err.message)
+      }
+    }
+
     const dados = {
       titulo: form.titulo, tipo: form.tipo,
       cliente_id: form.cliente_id || null,
       conteudo: form.conteudo || null,
-      link_arquivo: form.link_arquivo || null,
+      link_arquivo: linkArquivo,
       drive_url: form.drive_url || null,
       status_aprovacao: enviarParaAprovacao ? 'aguardando' : (form.status_aprovacao || 'rascunho'),
       visivel_cliente: enviarParaAprovacao ? true : form.visivel_cliente,
     }
+
     if (editando?.id) {
       await supabase.from('docs').update({ ...dados, updated_at: new Date().toISOString() }).eq('id', editando.id)
     } else {
@@ -245,6 +263,7 @@ export default function DocsPage() {
     setSalvando(false)
     setModalAberto(false)
     setEditando(null)
+    setArquivoPendente(null)
     setForm({ cliente_id: '', titulo: '', tipo: 'nota', conteudo: '', link_arquivo: '', drive_url: '', status_aprovacao: 'rascunho', visivel_cliente: false })
     carregar()
   }
@@ -490,8 +509,10 @@ export default function DocsPage() {
               <label className="label">Arquivo anexo</label>
               {form.link_arquivo ? (
                 <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                  <span className="text-sm text-emerald-700 flex-1 truncate">✅ Arquivo enviado</span>
-                  <a href={form.link_arquivo} target="_blank" rel="noopener noreferrer" className="text-xs text-vinho hover:underline">Ver</a>
+                  <Paperclip size={13} className="text-emerald-600" />
+                  <span className="text-sm text-emerald-700 flex-1 truncate">
+                    {arquivoPendente ? `📎 ${arquivoPendente.name}` : '✅ Arquivo enviado'}
+                  </span>
                   <button onClick={() => setForm(f => ({ ...f, link_arquivo: '' }))} className="text-xs text-gray-400 hover:text-red-500">Remover</button>
                 </div>
               ) : (
