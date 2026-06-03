@@ -233,13 +233,12 @@ export default function ClienteAprovacoesPage() {
                           )}
                         </div>
                       )}
-                        {doc.drive_url && (
+                      {doc.drive_url && (
                           <a href={doc.drive_url} target="_blank" rel="noopener noreferrer"
                             className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
                             <Download size={14} /> Abrir no Drive
                           </a>
-                        )}
-                      </div>
+                      )}
 
                       {/* Botões aprovação */}
                       {doc.status_aprovacao === 'aguardando' && (
