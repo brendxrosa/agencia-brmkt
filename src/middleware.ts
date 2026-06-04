@@ -25,7 +25,7 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Rotas públicas
+  // Rotas públicas — sem verificação
   if (
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api') ||
@@ -44,14 +44,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
-  // Busca role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  // Logado — verifica role pelo metadata do token (sem query ao banco)
+  // O role é salvo nos metadados quando o usuário é criado
+  const userMeta = user.user_metadata
+  const role = userMeta?.role
 
-  const role = profile?.role
+  // Se não tem role no metadata, deixa passar e o layout cuida
+  if (!role) return response
 
   // Cliente tentando acessar dashboard
   if (pathname.startsWith('/dashboard') && role === 'cliente') {
