@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type Post } from '@/types'
 import { STATUS_POST_LABELS, STATUS_POST_CORES, cn, formatDate } from '@/lib/utils'
-import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, Save } from 'lucide-react'
+import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, Save, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react'
 
 const COLUNAS = [
   'briefing', 'copy', 'design', 'edicao',
@@ -25,6 +25,70 @@ const TIPO_MIDIA = [
   { key: 'wetransfer', label: 'WeTransfer' },
   { key: 'outro', label: 'Outro' },
 ]
+
+// Normaliza o formato do tipo de post vindo do CSV
+function normalizarTipo(valor: string): Post['tipo'] {
+  const v = valor?.toLowerCase().trim()
+  if (v.includes('reels') || v.includes('reel')) return 'reels'
+  if (v.includes('carrossel') || v.includes('carousel')) return 'carrossel'
+  if (v.includes('stories') || v.includes('story')) return 'stories'
+  if (v.includes('tiktok')) return 'tiktok'
+  return 'feed'
+}
+
+// Normaliza data DD/MM/AAAA → AAAA-MM-DD
+function normalizarData(valor: string): string {
+  if (!valor?.trim()) return ''
+  const partes = valor.trim().split('/')
+  if (partes.length === 3) {
+    const [d, m, a] = partes
+    return `${a}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  return valor.trim()
+}
+
+// Parseia CSV respeitando campos entre aspas com quebras de linha
+function parseCSV(texto: string): Record<string, string>[] {
+  const linhas: string[] = []
+  let atual = ''
+  let dentroAspas = false
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i]
+    if (c === '"') { dentroAspas = !dentroAspas; atual += c }
+    else if (c === '\n' && !dentroAspas) { linhas.push(atual); atual = '' }
+    else { atual += c }
+  }
+  if (atual.trim()) linhas.push(atual)
+
+  if (linhas.length < 2) return []
+
+  const parseLinha = (linha: string): string[] => {
+    const campos: string[] = []
+    let campo = ''
+    let aspas = false
+    for (let i = 0; i < linha.length; i++) {
+      const c = linha[i]
+      if (c === '"' && !aspas) { aspas = true }
+      else if (c === '"' && aspas && linha[i + 1] === '"') { campo += '"'; i++ }
+      else if (c === '"' && aspas) { aspas = false }
+      else if (c === ',' && !aspas) { campos.push(campo.trim()); campo = '' }
+      else { campo += c }
+    }
+    campos.push(campo.trim())
+    return campos
+  }
+
+  const cabecalho = parseLinha(linhas[0]).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase())
+  return linhas.slice(1)
+    .filter(l => l.trim())
+    .map(l => {
+      const valores = parseLinha(l)
+      const obj: Record<string, string> = {}
+      cabecalho.forEach((h, i) => { obj[h] = (valores[i] || '').replace(/^"|"$/g, '').trim() })
+      return obj
+    })
+    .filter(r => Object.values(r).some(v => v))
+}
 
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   if (!open) return null
@@ -51,12 +115,19 @@ const formVazio: FormPost = {
   link_midia: '', tipo_midia: 'link', status_interno: 'briefing'
 }
 
+type PostImportado = {
+  titulo: string; tipo: Post['tipo']; data_publicacao: string
+  tema: string; copy: string; legenda: string; direcionamento: string
+  hora: string; ok: boolean; erro?: string
+}
+
 export default function KanbanPage() {
   const supabase = createClient()
   const [posts, setPosts] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [modalNovo, setModalNovo] = useState(false)
+  const [modalImportar, setModalImportar] = useState(false)
   const [postDetalhes, setPostDetalhes] = useState<any>(null)
   const [modoEditar, setModoEditar] = useState(false)
   const [filtroCliente, setFiltroCliente] = useState('todos')
@@ -64,6 +135,14 @@ export default function KanbanPage() {
   const [form, setForm] = useState<FormPost>(formVazio)
   const [formEditar, setFormEditar] = useState<FormPost>(formVazio)
   const [salvando, setSalvando] = useState(false)
+
+  // Estado do modal de importação
+  const [importCliente, setImportCliente] = useState('')
+  const [importPosts, setImportPosts] = useState<PostImportado[]>([])
+  const [importando, setImportando] = useState(false)
+  const [importSucesso, setImportSucesso] = useState(false)
+  const [importErro, setImportErro] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function carregar() {
     const [{ data: p }, { data: c }] = await Promise.all([
@@ -109,7 +188,6 @@ export default function KanbanPage() {
     await supabase.from('posts').update(formEditar).eq('id', postDetalhes.id)
     setSalvando(false)
     setModoEditar(false)
-    // Atualiza post nos detalhes
     const atualizado = { ...postDetalhes, ...formEditar, clientes: postDetalhes.clientes }
     setPostDetalhes(atualizado)
     carregar()
@@ -126,6 +204,102 @@ export default function KanbanPage() {
     setPostDetalhes(null)
     carregar()
   }
+
+  // ── Importação CSV ──────────────────────────────────────────
+
+  function handleArquivoCSV(file: File) {
+    setImportErro('')
+    setImportSucesso(false)
+    setImportPosts([])
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const texto = e.target?.result as string
+        const linhas = parseCSV(texto)
+
+        if (linhas.length === 0) {
+          setImportErro('Arquivo vazio ou sem dados. Verifique o formato.')
+          return
+        }
+
+        const postsParsados: PostImportado[] = linhas.map((linha, i) => {
+          const titulo = linha['tema'] || linha['título'] || linha['titulo'] || ''
+          const dataRaw = linha['data'] || ''
+          const data = normalizarData(dataRaw)
+
+          const erros: string[] = []
+          if (!titulo) erros.push('título/tema obrigatório')
+          if (!data) erros.push('data obrigatória')
+
+          return {
+            titulo: titulo || `Post ${i + 1}`,
+            tipo: normalizarTipo(linha['formato'] || ''),
+            data_publicacao: data,
+            tema: titulo,
+            copy: linha['copy'] || linha['roteiro'] || '',
+            legenda: linha['legenda'] || '',
+            direcionamento: linha['direcionamento'] || '',
+            hora: linha['hora'] || '',
+            ok: erros.length === 0,
+            erro: erros.join(', '),
+          }
+        })
+
+        setImportPosts(postsParsados)
+      } catch (err) {
+        setImportErro('Erro ao ler o arquivo. Certifique-se que é um CSV válido.')
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  async function confirmarImportacao() {
+    if (!importCliente) { setImportErro('Selecione um cliente.'); return }
+    const validos = importPosts.filter(p => p.ok)
+    if (validos.length === 0) { setImportErro('Nenhum post válido para importar.'); return }
+
+    setImportando(true)
+    const inserts = validos.map(p => ({
+      cliente_id: importCliente,
+      titulo: p.titulo,
+      tipo: p.tipo,
+      data_publicacao: p.data_publicacao || null,
+      tema: p.tema,
+      copy: p.copy,
+      legenda: p.legenda,
+      direcionamento: p.direcionamento,
+      status_interno: 'aguardando_cliente' as Post['status_interno'],
+      status_cliente: 'pendente',
+    }))
+
+    const { error } = await supabase.from('posts').insert(inserts)
+    setImportando(false)
+
+    if (error) {
+      setImportErro('Erro ao salvar os posts. Tente novamente.')
+    } else {
+      setImportSucesso(true)
+      carregar()
+      setTimeout(() => {
+        setModalImportar(false)
+        setImportPosts([])
+        setImportCliente('')
+        setImportSucesso(false)
+        setImportErro('')
+      }, 2000)
+    }
+  }
+
+  function fecharImportar() {
+    setModalImportar(false)
+    setImportPosts([])
+    setImportCliente('')
+    setImportSucesso(false)
+    setImportErro('')
+  }
+
+  // ────────────────────────────────────────────────────────────
 
   const postsFiltrados = filtroCliente === 'todos' ? posts : posts.filter(p => p.cliente_id === filtroCliente)
   const postsPorColuna = (status: string) => postsFiltrados.filter(p => p.status_interno === status)
@@ -200,6 +374,9 @@ export default function KanbanPage() {
     </div>
   )
 
+  const validosCount = importPosts.filter(p => p.ok).length
+  const invalidsCount = importPosts.filter(p => !p.ok).length
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -207,9 +384,14 @@ export default function KanbanPage() {
           <h1 className="page-title">Kanban Editorial</h1>
           <p className="text-gray-500 text-sm mt-1">{posts.length} posts no pipeline</p>
         </div>
-        <button onClick={() => setModalNovo(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={16} /> Novo post
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setModalImportar(true)} className="btn-secondary flex items-center gap-2 text-sm">
+            <Upload size={15} /> Importar CSV
+          </button>
+          <button onClick={() => setModalNovo(true)} className="btn-primary flex items-center gap-2">
+            <Plus size={16} /> Novo post
+          </button>
+        </div>
       </div>
 
       {/* Filtro */}
@@ -315,6 +497,114 @@ export default function KanbanPage() {
           ))}
         </div>
       )}
+
+      {/* ── Modal Importar CSV ── */}
+      <Modal open={modalImportar} onClose={fecharImportar}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-vinho">Importar calendário</h2>
+              <p className="text-sm text-gray-400 mt-0.5">Upload de CSV → posts criados automaticamente</p>
+            </div>
+            <button onClick={fecharImportar} className="btn-ghost p-2"><X size={18} /></button>
+          </div>
+
+          {importSucesso ? (
+            <div className="text-center py-10">
+              <CheckCircle size={48} className="mx-auto mb-3 text-emerald-500" />
+              <p className="font-semibold text-gray-800">{validosCount} post(s) importados com sucesso!</p>
+              <p className="text-sm text-gray-400 mt-1">Eles já estão no Kanban na coluna "Aguardando cliente".</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+
+              {/* Cliente */}
+              <div>
+                <label className="label">Cliente *</label>
+                <select className="input" value={importCliente} onChange={e => setImportCliente(e.target.value)}>
+                  <option value="">Selecione o cliente</option>
+                  {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+
+              {/* Upload */}
+              <div>
+                <label className="label">Arquivo CSV *</label>
+                <div
+                  className="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center cursor-pointer hover:border-vinho/40 hover:bg-rosa-pale/10 transition-all"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleArquivoCSV(f) }}>
+                  <Upload size={24} className="mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm text-gray-500">Arraste o CSV aqui ou <span className="text-vinho font-medium">clique para selecionar</span></p>
+                  <p className="text-xs text-gray-400 mt-1">Colunas esperadas: data, hora, formato, tema, abordagem, legenda, copy, direcionamento</p>
+                  <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleArquivoCSV(f) }} />
+                </div>
+              </div>
+
+              {importErro && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl px-4 py-3">
+                  <AlertCircle size={15} className="flex-shrink-0" /> {importErro}
+                </div>
+              )}
+
+              {/* Preview dos posts parseados */}
+              {importPosts.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="label">{importPosts.length} linha(s) encontradas</p>
+                    <div className="flex items-center gap-3 text-xs">
+                      {validosCount > 0 && <span className="text-emerald-600 font-medium">✓ {validosCount} válidas</span>}
+                      {invalidsCount > 0 && <span className="text-red-500 font-medium">✗ {invalidsCount} com erro</span>}
+                    </div>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {importPosts.map((p, i) => (
+                      <div key={i} className={cn('rounded-xl px-3 py-2.5 border text-sm flex items-start gap-3',
+                        p.ok ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100')}>
+                        <div className="flex-shrink-0 mt-0.5">
+                          {p.ok
+                            ? <CheckCircle size={14} className="text-emerald-500" />
+                            : <AlertCircle size={14} className="text-red-500" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn('font-medium truncate', p.ok ? 'text-emerald-800' : 'text-red-800')}>{p.titulo}</p>
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 flex-wrap">
+                            {p.data_publicacao && <span>📅 {p.data_publicacao}</span>}
+                            {p.hora && <span>🕐 {p.hora}</span>}
+                            <span className="capitalize">{p.tipo}</span>
+                            {!p.ok && <span className="text-red-500">• {p.erro}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Nota sobre arte */}
+              {importPosts.length > 0 && validosCount > 0 && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 flex items-start gap-2">
+                  <FileText size={13} className="flex-shrink-0 mt-0.5" />
+                  <span>Os posts serão criados na coluna <strong>Aguardando cliente</strong>. O link da arte pode ser adicionado depois em cada card, no campo Mídia/Arquivo.</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button onClick={fecharImportar} className="btn-secondary flex-1">Cancelar</button>
+                <button
+                  onClick={confirmarImportacao}
+                  disabled={importando || validosCount === 0 || !importCliente}
+                  className="btn-primary flex-1 justify-center flex items-center gap-2">
+                  <Upload size={15} />
+                  {importando ? 'Importando...' : `Importar ${validosCount > 0 ? validosCount : ''} post(s)`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* Modal detalhes/edição */}
       <Modal open={!!postDetalhes} onClose={() => { setPostDetalhes(null); setModoEditar(false) }}>
