@@ -11,15 +11,15 @@ import {
 import { useState, useEffect } from 'react'
 
 const navItems = [
-  { href: '/cliente', label: 'Início', icon: LayoutDashboard },
-  { href: '/cliente/calendario', label: 'Calendário', icon: Calendar },
+  { href: '/cliente', label: 'Início', icon: LayoutDashboard, badge: false },
+  { href: '/cliente/calendario', label: 'Calendário', icon: Calendar, badge: false },
   { href: '/cliente/aprovacoes', label: 'Aprovações', icon: CheckSquare, badge: true },
-  { href: '/cliente/agenda', label: 'Agenda', icon: CalendarDays },
-  { href: '/cliente/mensagens', label: 'Mensagens', icon: MessageCircle },
-  { href: '/cliente/docs', label: 'Documentos', icon: FileText },
-  { href: '/cliente/suporte', label: 'Suporte', icon: HelpCircle },
-  { href: '/cliente/briefings', label: 'Briefings', icon: FileText },
-  { href: '/cliente/perfil', label: 'Perfil', icon: User },
+  { href: '/cliente/agenda', label: 'Agenda', icon: CalendarDays, badge: false },
+  { href: '/cliente/mensagens', label: 'Mensagens', icon: MessageCircle, badge: false },
+  { href: '/cliente/docs', label: 'Documentos', icon: FileText, badge: false },
+  { href: '/cliente/suporte', label: 'Suporte', icon: HelpCircle, badge: false },
+  { href: '/cliente/briefings', label: 'Briefings', icon: FileText, badge: false },
+  { href: '/cliente/perfil', label: 'Perfil', icon: User, badge: false },
 ]
 
 export default function ClienteNav({ profile }: { profile: any }) {
@@ -29,26 +29,30 @@ export default function ClienteNav({ profile }: { profile: any }) {
   const [mobileAberto, setMobileAberto] = useState(false)
   const [pendentes, setPendentes] = useState(0)
 
-  const cliente = profile?.clientes
-  const cor = cliente?.cor || '#6B0F2A'
+  const clienteInfo = profile?.clientes
+  const cor = clienteInfo?.cor || '#6B0F2A'
 
   useEffect(() => {
     async function contarPendentes() {
-      if (!cliente?.id) return
+      if (!clienteInfo?.id) return
       const [{ count: posts }, { count: docs }] = await Promise.all([
         supabase.from('posts').select('*', { count: 'exact', head: true })
-          .eq('cliente_id', cliente.id).eq('status_interno', 'aguardando_cliente'),
+          .eq('cliente_id', clienteInfo.id).eq('status_interno', 'aguardando_cliente'),
         supabase.from('docs').select('*', { count: 'exact', head: true })
-          .eq('cliente_id', cliente.id).eq('status_aprovacao', 'aguardando')
+          .eq('cliente_id', clienteInfo.id).eq('status_aprovacao', 'aguardando')
       ])
       setPendentes((posts || 0) + (docs || 0))
     }
     contarPendentes()
     const interval = setInterval(contarPendentes, 30000)
     return () => clearInterval(interval)
-  }, [cliente?.id])
+  }, [clienteInfo?.id])
 
   async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push('/auth/cliente-login')
+    router.refresh()
+  }
 
   function isActive(href: string) {
     if (href === '/cliente') return pathname === href
@@ -64,17 +68,17 @@ export default function ClienteNav({ profile }: { profile: any }) {
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
                 style={{ backgroundColor: cor }}>
-                {cliente?.nome?.charAt(0) || 'C'}
+                {clienteInfo?.nome?.charAt(0) || 'C'}
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-semibold text-gray-800 leading-tight">{cliente?.nome || 'Portal'}</p>
+                <p className="text-sm font-semibold text-gray-800 leading-tight">{clienteInfo?.nome || 'Portal'}</p>
                 <p className="text-xs text-gray-400">Agência BR MKT</p>
               </div>
             </div>
 
             {/* Nav desktop */}
             <nav className="hidden md:flex items-center gap-0.5">
-              {navItems.map(({ href, label, icon: Icon, badge }: any) => (
+              {navItems.map(({ href, label, icon: Icon, badge }) => (
                 <Link key={href} href={href}
                   className={cn(
                     'relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all',
@@ -125,10 +129,10 @@ export default function ClienteNav({ profile }: { profile: any }) {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold"
               style={{ backgroundColor: cor }}>
-              {cliente?.nome?.charAt(0) || 'C'}
+              {clienteInfo?.nome?.charAt(0) || 'C'}
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-800">{cliente?.nome || 'Portal'}</p>
+              <p className="text-sm font-semibold text-gray-800">{clienteInfo?.nome || 'Portal'}</p>
               <p className="text-xs text-gray-400">Agência BR MKT</p>
             </div>
           </div>
@@ -139,7 +143,7 @@ export default function ClienteNav({ profile }: { profile: any }) {
 
         {/* Links */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map(({ href, label, icon: Icon, badge }: any) => (
+          {navItems.map(({ href, label, icon: Icon, badge }) => (
             <Link key={href} href={href}
               onClick={() => setMobileAberto(false)}
               className={cn(
