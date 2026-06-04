@@ -21,11 +21,6 @@ export default async function ClienteLayout({ children }: { children: React.Reac
     redirect('/dashboard')
   }
 
-  // Cliente sem vínculo
-  if (!profile?.cliente_id) {
-    redirect('/auth/cliente-login')
-  }
-
   return (
     <div className="min-h-screen bg-offwhite">
       <ClienteNav profile={profile} />
