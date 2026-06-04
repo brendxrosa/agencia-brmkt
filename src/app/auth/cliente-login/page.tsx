@@ -33,11 +33,10 @@ export default function ClienteLoginPage() {
       .single()
 
     if (profile?.role === 'admin' || profile?.role === 'equipe') {
-      router.push('/dashboard')
+      window.location.href = '/dashboard'
     } else {
-      router.push('/cliente')
+      window.location.href = '/cliente'
     }
-    router.refresh()
   }
 
   return (
