@@ -18,6 +18,21 @@ export default function ClienteDashboardPage() {
   const [tarefas, setTarefas] = useState<any[]>([])
   const [briefings, setBriefings] = useState<any[]>([])
   const [respostas, setRespostas] = useState<any[]>([])
+
+  useEffect(() => {
+    // Verifica role — admin/equipe não pode acessar portal do cliente
+    supabase.from('profiles').select('role').then(({ data }) => {
+      // pega o user atual
+    })
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { window.location.href = '/auth/cliente-login'; return }
+      supabase.from('profiles').select('role').eq('id', user.id).single().then(({ data }) => {
+        if (data?.role === 'admin' || data?.role === 'equipe') {
+          window.location.href = '/dashboard'
+        }
+      })
+    })
+  }, [])
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState('')
   const [statusCliente, setStatusCliente] = useState<string>('ativo')
