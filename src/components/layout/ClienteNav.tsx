@@ -49,13 +49,6 @@ export default function ClienteNav({ profile }: { profile: any }) {
   }, [cliente?.id])
 
   async function handleLogout() {
-    await supabase.auth.signOut()
-    router.push('/auth/cliente-login')
-    router.refresh()
-  }
-
-  const cliente = profile?.clientes
-  const cor = cliente?.cor || '#6B0F2A'
 
   function isActive(href: string) {
     if (href === '/cliente') return pathname === href
