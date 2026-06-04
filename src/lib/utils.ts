@@ -13,19 +13,11 @@ export function formatDate(date: string | Date, pattern = "dd/MM/yyyy") {
 }
 
 export function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value)
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
 export function getInitials(name: string) {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
+  return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
 }
 
 export const STATUS_POST_LABELS: Record<string, string> = {
@@ -36,20 +28,66 @@ export const STATUS_POST_LABELS: Record<string, string> = {
   revisao_interna: 'Revisão Interna',
   aguardando_cliente: 'Aguardando Cliente',
   aprovado: 'Aprovado',
-  publicado: 'Publicado',
   reprovado: 'Reprovado',
+  // Produção pós-aprovação
+  para_captar: 'Para Captar',
+  captado: 'Captado',
+  pendente_edicao: 'Pendente Edição',
+  agendado: 'Agendado',
+  postado: 'Postado',
+  concluido: 'Concluído',
+  publicado: 'Publicado',
 }
 
 export const STATUS_POST_CORES: Record<string, string> = {
-  briefing: 'bg-gray-100 text-gray-700',
+  briefing: 'bg-gray-100 text-gray-600',
   copy: 'bg-blue-100 text-blue-700',
   design: 'bg-purple-100 text-purple-700',
   edicao: 'bg-orange-100 text-orange-700',
   revisao_interna: 'bg-yellow-100 text-yellow-700',
   aguardando_cliente: 'bg-pink-100 text-pink-700',
   aprovado: 'bg-green-100 text-green-700',
-  publicado: 'bg-emerald-100 text-emerald-700',
   reprovado: 'bg-red-100 text-red-700',
+  // Produção — tons de teal/slate
+  para_captar: 'bg-sky-100 text-sky-700',
+  captado: 'bg-teal-100 text-teal-700',
+  pendente_edicao: 'bg-violet-100 text-violet-700',
+  agendado: 'bg-indigo-100 text-indigo-700',
+  postado: 'bg-emerald-100 text-emerald-700',
+  concluido: 'bg-gray-100 text-gray-400',  // cinza apagado = arquivado
+  publicado: 'bg-emerald-100 text-emerald-700',
+}
+
+// Etiquetas de feedback do cliente
+export const ETIQUETA_LABELS: Record<string, string> = {
+  aprovado: '✓ Aprovado',
+  reprovado: '✗ Reprovado',
+  ajuste_copy: 'Ajuste na copy',
+  ajuste_arte: 'Ajuste na arte',
+  ajuste_roteiro: 'Ajuste no roteiro',
+  ajuste_data: 'Ajuste na data',
+}
+
+export const ETIQUETA_CORES: Record<string, string> = {
+  aprovado: 'bg-green-100 text-green-700',
+  reprovado: 'bg-red-100 text-red-700',
+  ajuste_copy: 'bg-orange-100 text-orange-700',
+  ajuste_arte: 'bg-purple-100 text-purple-700',
+  ajuste_roteiro: 'bg-blue-100 text-blue-700',
+  ajuste_data: 'bg-yellow-100 text-yellow-700',
+}
+
+// Status que o cliente pode ver (visíveis no portal)
+export const STATUS_CLIENTE_VISIVEL: Record<string, string> = {
+  aguardando_cliente: 'Aguardando sua aprovação',
+  aprovado: 'Aprovado por você',
+  reprovado: 'Reprovado — em ajuste',
+  para_captar: 'Material a captar',
+  captado: 'Material captado',
+  pendente_edicao: 'Em edição',
+  agendado: 'Agendado',
+  postado: 'Postado',
+  concluido: 'Concluído',
 }
 
 export const PRIORIDADE_CORES: Record<string, string> = {
