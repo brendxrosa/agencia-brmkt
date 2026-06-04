@@ -64,7 +64,6 @@ export default function ClienteNav({ profile }: { profile: any }) {
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
-            {/* Logo/Cliente */}
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
                 style={{ backgroundColor: cor }}>
@@ -76,55 +75,60 @@ export default function ClienteNav({ profile }: { profile: any }) {
               </div>
             </div>
 
-            {/* Nav desktop */}
             <nav className="hidden md:flex items-center gap-0.5">
-              {navItems.map(({ href, label, icon: Icon, badge }) => (
-                <Link key={href} href={href}
-                  className={cn(
-                    'relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all',
-                    isActive(href) ? 'bg-vinho text-white' : 'text-gray-500 hover:bg-creme hover:text-gray-700'
-                  )}>
-                  <Icon size={14} />
-                  <span>{label}</span>
-                  {badge && pendentes > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rosa rounded-full text-white text-xs font-bold flex items-center justify-center">
-                      {pendentes > 9 ? '9+' : pendentes}
-                    </span>
-                  )}
-                </Link>
-              ))}
+              {navItems.map(({ href, label, icon: Icon, badge }) => {
+                const ativo = isActive(href)
+                const temPendente = badge && pendentes > 0
+                return (
+                  <Link key={href} href={href}
+                    className={cn(
+                      'relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all',
+                      ativo ? 'bg-vinho text-white' : 'text-gray-500 hover:bg-creme hover:text-gray-700',
+                      // destaque pulsante quando tem pendente e NÃO está na aba
+                      temPendente && !ativo && 'text-rosa font-semibold'
+                    )}>
+                    <Icon size={14} className={cn(temPendente && !ativo && 'text-rosa')} />
+                    <span>{label}</span>
+                    {temPendente && (
+                      <span className={cn(
+                        'absolute -top-1 -right-1 w-4 h-4 rounded-full text-white text-xs font-bold flex items-center justify-center',
+                        ativo ? 'bg-white text-vinho' : 'bg-rosa animate-pulse'
+                      )}>
+                        {pendentes > 9 ? '9+' : pendentes}
+                      </span>
+                    )}
+                  </Link>
+                )
+              })}
             </nav>
 
             <div className="flex items-center gap-2">
-              {/* Logout desktop */}
               <button onClick={handleLogout}
                 className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
                 <LogOut size={14} />
                 <span>Sair</span>
               </button>
-
-              {/* Hamburguer mobile */}
               <button onClick={() => setMobileAberto(true)}
-                className="md:hidden w-9 h-9 rounded-xl bg-creme flex items-center justify-center">
+                className="md:hidden w-9 h-9 rounded-xl bg-creme flex items-center justify-center relative">
                 <Menu size={18} className="text-gray-600" />
+                {pendentes > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rosa rounded-full animate-pulse" />
+                )}
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Overlay mobile */}
       {mobileAberto && (
         <div className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
           onClick={() => setMobileAberto(false)} />
       )}
 
-      {/* Drawer mobile */}
       <div className={cn(
         'md:hidden fixed top-0 right-0 h-screen w-72 bg-white z-50 shadow-xl transition-transform duration-300 flex flex-col',
         mobileAberto ? 'translate-x-0' : 'translate-x-full'
       )}>
-        {/* Header drawer */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold"
@@ -141,27 +145,33 @@ export default function ClienteNav({ profile }: { profile: any }) {
           </button>
         </div>
 
-        {/* Links */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map(({ href, label, icon: Icon, badge }) => (
-            <Link key={href} href={href}
-              onClick={() => setMobileAberto(false)}
-              className={cn(
-                'relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all',
-                isActive(href) ? 'bg-vinho text-white' : 'text-gray-600 hover:bg-creme'
-              )}>
-              <Icon size={18} />
-              {label}
-              {badge && pendentes > 0 && (
-                <span className="ml-auto w-5 h-5 bg-rosa rounded-full text-white text-xs font-bold flex items-center justify-center">
-                  {pendentes > 9 ? '9+' : pendentes}
-                </span>
-              )}
-            </Link>
-          ))}
+          {navItems.map(({ href, label, icon: Icon, badge }) => {
+            const ativo = isActive(href)
+            const temPendente = badge && pendentes > 0
+            return (
+              <Link key={href} href={href}
+                onClick={() => setMobileAberto(false)}
+                className={cn(
+                  'relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all',
+                  ativo ? 'bg-vinho text-white' : 'text-gray-600 hover:bg-creme',
+                  temPendente && !ativo && 'text-rosa'
+                )}>
+                <Icon size={18} />
+                {label}
+                {temPendente && (
+                  <span className={cn(
+                    'ml-auto w-5 h-5 rounded-full text-white text-xs font-bold flex items-center justify-center',
+                    ativo ? 'bg-white text-vinho' : 'bg-rosa animate-pulse'
+                  )}>
+                    {pendentes > 9 ? '9+' : pendentes}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
         </nav>
 
-        {/* Logout */}
         <div className="p-3 border-t border-gray-100">
           <button onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-red-500 hover:bg-red-50 transition-all">
