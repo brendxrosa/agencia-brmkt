@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
@@ -12,10 +12,12 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() { return request.cookies.getAll() },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           response = NextResponse.next({ request: { headers: request.headers } })
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options ?? {})
+          )
         },
       },
     }
@@ -23,7 +25,7 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Rotas públicas — sem verificação
+  // Rotas públicas
   if (
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api') ||
@@ -34,7 +36,7 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // Não logado — redireciona pro login correto
+  // Não logado
   if (!user) {
     if (pathname.startsWith('/cliente')) {
       return NextResponse.redirect(new URL('/auth/cliente-login', request.url))
@@ -42,7 +44,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
-  // Busca o role do usuário
+  // Busca role
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -51,20 +53,14 @@ export async function middleware(request: NextRequest) {
 
   const role = profile?.role
 
-  // CLIENTE tentando acessar dashboard → manda pro portal do cliente
+  // Cliente tentando acessar dashboard
   if (pathname.startsWith('/dashboard') && role === 'cliente') {
     return NextResponse.redirect(new URL('/cliente', request.url))
   }
 
-  // ADMIN/EQUIPE tentando acessar portal do cliente → manda pro dashboard
+  // Admin/equipe tentando acessar portal cliente
   if (pathname.startsWith('/cliente') && (role === 'admin' || role === 'equipe')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
-  // Usuário sem role reconhecido → desloga e manda pro login
-  if (!role) {
-    await supabase.auth.signOut()
-    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
   return response
