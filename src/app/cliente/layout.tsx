@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import ClienteNav from '@/components/layout/ClienteNav'
 
 export default async function ClienteLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +16,7 @@ export default async function ClienteLayout({ children }: { children: React.Reac
     .eq('id', user.id)
     .single()
 
-  // Admin/equipe não pode acessar portal do cliente
+  // Só bloqueia admin/equipe — não cria loop
   if (profile?.role === 'admin' || profile?.role === 'equipe') {
     redirect('/dashboard')
   }
