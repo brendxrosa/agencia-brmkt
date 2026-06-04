@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { CheckCircle, XCircle, Clock, MessageCircle, Paperclip, Send, Download, FileText, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, MessageCircle, Paperclip, Send, Download, FileText, ChevronDown, ChevronUp, X, History } from 'lucide-react'
 import { format, parseISO, formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -34,9 +34,12 @@ export default function ClienteAprovacoesPage() {
   const [clienteId, setClienteId] = useState('')
   const [userId, setUserId] = useState('')
   const [userName, setUserName] = useState('')
-  const [aba, setAba] = useState<'posts' | 'docs'>('docs')
+  const [aba, setAba] = useState<'posts' | 'docs' | 'historico'>('docs')
   const [posts, setPosts] = useState<any[]>([])
   const [docs, setDocs] = useState<any[]>([])
+  // Histórico: docs + posts já aprovados ou reprovados
+  const [historicoDocs, setHistoricoDocs] = useState<any[]>([])
+  const [historicoPosts, setHistoricoPosts] = useState<any[]>([])
   const [comentarios, setComentarios] = useState<Record<string, any[]>>({})
   const [abertos, setAbertos] = useState<string[]>([])
   const [comentario, setComentario] = useState<Record<string, string>>({})
@@ -57,13 +60,20 @@ export default function ClienteAprovacoesPage() {
     setClienteId(profile.cliente_id)
     setUserName(profile.nome || 'Cliente')
 
-    const [{ data: p }, { data: d }] = await Promise.all([
+    const [{ data: p }, { data: d }, { data: hd }, { data: hp }] = await Promise.all([
+      // Pendentes
       supabase.from('posts').select('*').eq('cliente_id', profile.cliente_id).eq('status_interno', 'aguardando_cliente').order('created_at', { ascending: false }),
       supabase.from('docs').select('*').eq('cliente_id', profile.cliente_id).eq('status_aprovacao', 'aguardando').order('updated_at', { ascending: false }),
+      // Histórico: docs já decididos
+      supabase.from('docs').select('*').eq('cliente_id', profile.cliente_id).in('status_aprovacao', ['aprovado', 'reprovado']).order('data_aprovacao', { ascending: false }).limit(50),
+      // Histórico: posts já decididos
+      supabase.from('posts').select('*').eq('cliente_id', profile.cliente_id).in('status_cliente', ['aprovado', 'reprovado']).order('data_aprovacao', { ascending: false }).limit(50),
     ])
 
     setPosts(p || [])
     setDocs(d || [])
+    setHistoricoDocs(hd || [])
+    setHistoricoPosts(hp || [])
     setLoading(false)
   }
 
@@ -84,10 +94,10 @@ export default function ClienteAprovacoesPage() {
     setAtualizando(docId)
     await supabase.from('docs').update({
       status_aprovacao: status,
+      data_aprovacao: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }).eq('id', docId)
 
-    // Registra no histórico como comentário do sistema
     await supabase.from('aprovacao_comentarios').insert({
       doc_id: docId,
       autor_id: userId,
@@ -105,7 +115,8 @@ export default function ClienteAprovacoesPage() {
     setAtualizando(postId)
     await supabase.from('posts').update({
       status_cliente: status,
-      status_interno: status === 'aprovado' ? 'aprovado' : 'ajuste_necessario'
+      status_interno: status === 'aprovado' ? 'aprovado' : 'ajuste_necessario',
+      data_aprovacao: new Date().toISOString(),
     }).eq('id', postId)
     setAtualizando(null)
     carregar()
@@ -143,6 +154,17 @@ export default function ClienteAprovacoesPage() {
   }
 
   const totalPendente = posts.length + docs.length
+  const totalHistorico = historicoDocs.length + historicoPosts.length
+
+  // Junta histórico docs + posts ordenado por data
+  const historicoUnificado = [
+    ...historicoDocs.map(d => ({ ...d, _tipo: 'doc' })),
+    ...historicoPosts.map(p => ({ ...p, _tipo: 'post' })),
+  ].sort((a, b) => {
+    const da = a.data_aprovacao || a.updated_at || a.created_at
+    const db = b.data_aprovacao || b.updated_at || b.created_at
+    return new Date(db).getTime() - new Date(da).getTime()
+  })
 
   return (
     <div className="space-y-5">
@@ -163,11 +185,64 @@ export default function ClienteAprovacoesPage() {
             aba === 'posts' ? 'bg-white shadow-card text-vinho' : 'text-gray-500')}>
           <CheckCircle size={15} /> Posts {posts.length > 0 && <span className="badge bg-orange-100 text-orange-700 text-xs">{posts.length}</span>}
         </button>
+        <button onClick={() => setAba('historico')}
+          className={cn('flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all',
+            aba === 'historico' ? 'bg-white shadow-card text-vinho' : 'text-gray-500')}>
+          <History size={15} /> Histórico {totalHistorico > 0 && <span className="badge bg-gray-100 text-gray-600 text-xs">{totalHistorico}</span>}
+        </button>
       </div>
 
       {loading ? (
         <div className="space-y-3">{[1,2].map(i => <div key={i} className="card h-24 animate-pulse bg-creme" />)}</div>
+      ) : aba === 'historico' ? (
+        /* ── ABA HISTÓRICO ── */
+        historicoUnificado.length === 0 ? (
+          <div className="card text-center py-16">
+            <History size={40} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-gray-500">Nenhum item aprovado ou reprovado ainda.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {historicoUnificado.map(item => {
+              const isDoc = item._tipo === 'doc'
+              const statusRaw = isDoc ? item.status_aprovacao : item.status_cliente
+              const statusConfig = STATUS_CONFIG[statusRaw as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.aguardando
+              const Icon = statusConfig.icon
+              const dataDecisao = item.data_aprovacao || item.updated_at
+
+              return (
+                <div key={`${item._tipo}-${item.id}`} className="card flex items-start gap-3">
+                  <div className={cn('w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5',
+                    statusRaw === 'aprovado' ? 'bg-emerald-100' : 'bg-red-100')}>
+                    <Icon size={16} className={statusRaw === 'aprovado' ? 'text-emerald-600' : 'text-red-600'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-gray-800 text-sm">{item.titulo}</p>
+                      <span className="badge bg-gray-100 text-gray-500 text-xs">{isDoc ? getLabelTipo(item.tipo) : item.tipo}</span>
+                      <span className="badge bg-blue-50 text-blue-600 text-xs">{isDoc ? 'Documento' : 'Post'}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className={cn('badge text-xs flex items-center gap-1', statusConfig.cor)}>
+                        <Icon size={10} /> {statusConfig.label}
+                      </span>
+                      {dataDecisao && (
+                        <span className="text-xs text-gray-400">
+                          {formatDistanceToNow(parseISO(dataDecisao), { addSuffix: true, locale: ptBR })}
+                        </span>
+                      )}
+                    </div>
+                    {item.feedback_cliente && (
+                      <p className="text-xs text-gray-500 mt-1.5 bg-creme rounded-lg px-3 py-1.5 italic">"{item.feedback_cliente}"</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
       ) : aba === 'docs' ? (
+        /* ── ABA DOCUMENTOS ── */
         docs.length === 0 ? (
           <div className="card text-center py-16">
             <CheckCircle size={40} className="mx-auto mb-3 text-gray-300" />
@@ -183,7 +258,6 @@ export default function ClienteAprovacoesPage() {
 
               return (
                 <div key={doc.id} className="card">
-                  {/* Header */}
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -206,13 +280,10 @@ export default function ClienteAprovacoesPage() {
 
                   {aberto && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
-                      {/* Conteúdo do doc */}
                       {doc.conteudo && (
                         <div className="prose prose-sm max-w-none text-gray-700 bg-creme/50 rounded-xl p-4"
                           dangerouslySetInnerHTML={{ __html: doc.conteudo }} />
                       )}
-
-                      {/* Preview inline */}
                       {doc.link_arquivo && (
                         <div className="mb-3">
                           {/\.(pdf)$/i.test(doc.link_arquivo) ? (
@@ -234,13 +305,11 @@ export default function ClienteAprovacoesPage() {
                         </div>
                       )}
                       {doc.drive_url && (
-                          <a href={doc.drive_url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-                            <Download size={14} /> Abrir no Drive
-                          </a>
+                        <a href={doc.drive_url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+                          <Download size={14} /> Abrir no Drive
+                        </a>
                       )}
-
-                      {/* Botões aprovação */}
                       {doc.status_aprovacao === 'aguardando' && (
                         <div className="flex gap-3">
                           <button onClick={() => aprovarDoc(doc.id, 'reprovado')} disabled={atualizando === doc.id}
@@ -253,7 +322,6 @@ export default function ClienteAprovacoesPage() {
                           </button>
                         </div>
                       )}
-
                       {doc.status_aprovacao !== 'aguardando' && (
                         <div className={cn('rounded-xl p-3 text-center', statusConfig.cor)}>
                           <p className="text-sm font-medium flex items-center justify-center gap-2">
@@ -261,13 +329,10 @@ export default function ClienteAprovacoesPage() {
                           </p>
                         </div>
                       )}
-
-                      {/* Comentários */}
                       <div className="space-y-3">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
                           <MessageCircle size={12} /> Comentários e ajustes
                         </p>
-
                         {coments.length === 0 ? (
                           <p className="text-xs text-gray-400">Nenhum comentário ainda. Use o campo abaixo para deixar observações ou pedir ajustes.</p>
                         ) : (
@@ -298,8 +363,6 @@ export default function ClienteAprovacoesPage() {
                             ))}
                           </div>
                         )}
-
-                        {/* Campo comentário */}
                         <div className="space-y-2">
                           {arquivoTemp[doc.id] && (
                             <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
@@ -335,7 +398,7 @@ export default function ClienteAprovacoesPage() {
           </div>
         )
       ) : (
-        /* Posts */
+        /* ── ABA POSTS ── */
         posts.length === 0 ? (
           <div className="card text-center py-16">
             <CheckCircle size={40} className="mx-auto mb-3 text-gray-300" />
