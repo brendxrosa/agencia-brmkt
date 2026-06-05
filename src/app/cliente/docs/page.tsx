@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { FileText, ExternalLink, BookOpen, CreditCard, FileCheck, ChevronDown, ChevronUp, FolderOpen } from 'lucide-react'
+import { FileText, ExternalLink, BookOpen, CreditCard, FileCheck, ChevronDown, ChevronUp, FolderOpen, Search, X } from 'lucide-react'
 
 const TIPO_CONFIG: Record<string, { label: string; icon: any; cor: string }> = {
   briefing:    { label: 'Briefing',         icon: BookOpen,  cor: 'bg-blue-100 text-blue-700' },
@@ -29,6 +29,7 @@ export default function ClienteDocsPage() {
   const [loading, setLoading] = useState(true)
   const [docAberto, setDocAberto] = useState<string | null>(null)
   const [aba, setAba] = useState('documentos')
+  const [busca, setBusca] = useState('')
 
   async function carregar() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -86,83 +87,18 @@ export default function ClienteDocsPage() {
         <>
           {aba === 'documentos' && (
             <div className="space-y-4">
-              {/* Info contrato */}
-              {clienteInfo && (
-                <div className="card border-l-4 border-l-vinho">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <FileCheck size={20} className="text-vinho" />
-                      <h3 className="section-title text-base">Meu contrato</h3>
-                    </div>
-                    {clienteInfo.contrato_url && (
-                      <a href={clienteInfo.contrato_url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-vinho hover:underline flex items-center gap-1">
-                        ⬇ Baixar contrato
-                      </a>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    {clienteInfo.plano && <div>
-                      <p className="text-xs text-gray-400">Plano</p>
-                      <p className="font-medium text-gray-800">{clienteInfo.plano}</p>
-                    </div>}
-                    {clienteInfo.valor_mensal && <div>
-                      <p className="text-xs text-gray-400">Valor mensal</p>
-                      <p className="font-medium text-gray-800">R$ {clienteInfo.valor_mensal?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    </div>}
-                    {clienteInfo.dia_vencimento && <div>
-                      <p className="text-xs text-gray-400">Vencimento</p>
-                      <p className="font-medium text-gray-800">Todo dia {clienteInfo.dia_vencimento}</p>
-                    </div>}
-                    {clienteInfo.forma_pagamento && <div>
-                      <p className="text-xs text-gray-400">Forma de pagamento</p>
-                      <p className="font-medium text-gray-800 capitalize">{clienteInfo.forma_pagamento}</p>
-                    </div>}
-                    {clienteInfo.data_inicio_contrato && <div>
-                      <p className="text-xs text-gray-400">Início</p>
-                      <p className="font-medium text-gray-800">{new Date(clienteInfo.data_inicio_contrato).toLocaleDateString('pt-BR')}</p>
-                    </div>}
-                    {clienteInfo.data_fim_contrato && <div>
-                      <p className="text-xs text-gray-400">Término</p>
-                      <p className="font-medium text-gray-800">{new Date(clienteInfo.data_fim_contrato).toLocaleDateString('pt-BR')}</p>
-                    </div>}
-                  </div>
-                  {clienteInfo.servicos_contratados && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs text-gray-400 mb-1">Serviços incluídos</p>
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {clienteInfo.servicos_contratados.split(/[,;\n]/).map((s: string, i: number) => s.trim() && (
-                          <span key={i} className="badge bg-vinho/10 text-vinho text-xs">{s.trim()}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {clienteInfo.objetivo && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs text-gray-400">Objetivo</p>
-                      <p className="text-sm text-gray-700 mt-0.5">{clienteInfo.objetivo}</p>
-                    </div>
-                  )}
-                  {clienteInfo.observacoes && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs text-gray-400">Observações do contrato</p>
-                      <p className="text-sm text-gray-500 italic mt-0.5">{clienteInfo.observacoes}</p>
-                    </div>
-                  )}
-                  {clienteInfo.contrato_url && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <a href={clienteInfo.contrato_url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 bg-vinho text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-vinho/90 transition-all">
-                        ⬇ Baixar meu contrato
-                      </a>
-                      <p className="text-xs text-gray-400 mt-1.5">
-                        {clienteInfo.contrato_nome || 'Contrato de prestação de serviços'}
-                        {clienteInfo.contrato_extraido_em ? ` · atualizado em ${new Date(clienteInfo.contrato_extraido_em).toLocaleDateString('pt-BR')}` : ''}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
+
+              {/* Barra de busca */}
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input className="input pl-9 pr-9 text-sm" placeholder="Pesquisar documentos..."
+                  value={busca} onChange={e => setBusca(e.target.value)} />
+                {busca && (
+                  <button onClick={() => setBusca('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
 
               {/* Google Drive */}
               {clienteInfo?.drive_url && (
@@ -188,53 +124,9 @@ export default function ClienteDocsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Boletos e comprovantes → seção financeira */}
-                  {docs.filter(d => ['boleto','nota_fiscal','comprovante'].includes(d.tipo)).length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="section-title text-sm text-yellow-700">💰 Financeiro</h3>
-                      {docs.filter(d => ['boleto','nota_fiscal','comprovante'].includes(d.tipo)).map(doc => {
-                        const config = tipoConfig(doc.tipo)
-                        const Icon = config.icon
-                        const aberto = docAberto === doc.id
-                        return (
-                          <div key={doc.id} className="card border-l-2 border-l-yellow-300">
-                            <button onClick={() => setDocAberto(aberto ? null : doc.id)}
-                              className="w-full flex items-center gap-3 text-left">
-                              <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', config.cor.split(' ')[0])}>
-                                <Icon size={16} className={config.cor.split(' ')[1]} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-800">{doc.titulo}</p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className={cn('badge text-xs', config.cor)}>{config.label}</span>
-                                  <span className="text-xs text-gray-400">{formatDate(doc.updated_at, "dd/MM/yyyy")}</span>
-                                </div>
-                              </div>
-                              {aberto ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                            </button>
-                            {aberto && (
-                              <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
-                                {doc.conteudo && <div className="bg-creme rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{doc.conteudo}</div>}
-                                {doc.link_arquivo && (/\.pdf$/i.test(doc.link_arquivo) ? (
-                                  <div className="rounded-xl overflow-hidden border border-gray-200">
-                                    <div className="flex items-center justify-between px-3 py-2 bg-creme border-b border-gray-200">
-                                      <span className="text-xs font-medium text-gray-600">📄 PDF</span>
-                                      <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer" className="text-xs text-vinho hover:underline">⬇ Baixar</a>
-                                    </div>
-                                    <iframe src={doc.link_arquivo} className="w-full h-52" title={doc.titulo} />
-                                  </div>
-                                ) : <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-vinho hover:underline">⬇ Baixar arquivo</a>)}
-                                {doc.drive_url && <a href={doc.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-blue-600 hover:underline">{doc.drive_url.includes('drive.google') ? '🔗 Abrir no Google Drive' : '🔗 Acessar link'}</a>}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  <div className="space-y-2">
+                                    <div className="space-y-2">
                   <h3 className="section-title text-sm">Documentos compartilhados</h3>
-                  {docs.filter(d => !['boleto','nota_fiscal','comprovante'].includes(d.tipo)).map(doc => {
+                  {docs.filter(d => !['boleto','nota_fiscal','comprovante'].includes(d.tipo) && (!busca || d.titulo?.toLowerCase().includes(busca.toLowerCase()))).map(doc => {
                     const config = tipoConfig(doc.tipo)
                     const Icon = config.icon
                     const aberto = docAberto === doc.id
@@ -358,7 +250,51 @@ export default function ClienteDocsPage() {
                 </div>
               )}
 
-              {pagamentos.length === 0 && (
+              {/* Docs do tipo financeiro na aba Financeiro */}
+              {docs.filter(d => ['boleto','nota_fiscal','comprovante'].includes(d.tipo)).length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="section-title text-sm">Documentos financeiros</h3>
+                  {docs.filter(d => ['boleto','nota_fiscal','comprovante'].includes(d.tipo)).map(doc => {
+                    const config = tipoConfig(doc.tipo)
+                    const Icon = config.icon
+                    const aberto = docAberto === doc.id
+                    return (
+                      <div key={doc.id} className="card">
+                        <button onClick={() => setDocAberto(aberto ? null : doc.id)}
+                          className="w-full flex items-center gap-3 text-left">
+                          <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', config.cor.split(' ')[0])}>
+                            <Icon size={16} className={config.cor.split(' ')[1]} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800">{doc.titulo}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className={cn('badge text-xs', config.cor)}>{config.label}</span>
+                              <span className="text-xs text-gray-400">{formatDate(doc.updated_at, "dd/MM/yyyy")}</span>
+                            </div>
+                          </div>
+                          {aberto ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                        </button>
+                        {aberto && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                            {doc.conteudo && <div className="bg-creme rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap">{doc.conteudo}</div>}
+                            {doc.link_arquivo && (/\.pdf$/i.test(doc.link_arquivo) ? (
+                              <div className="rounded-xl overflow-hidden border border-gray-200">
+                                <div className="flex items-center justify-between px-3 py-2 bg-creme border-b border-gray-200">
+                                  <span className="text-xs font-medium">📄 PDF</span>
+                                  <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer" className="text-xs text-vinho hover:underline">⬇ Baixar</a>
+                                </div>
+                                <iframe src={doc.link_arquivo} className="w-full h-52" title={doc.titulo} />
+                              </div>
+                            ) : <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-vinho hover:underline">⬇ Baixar arquivo</a>)}
+                            {doc.drive_url && <a href={doc.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-blue-600 hover:underline">{doc.drive_url.includes('drive.google') ? '🔗 Abrir no Drive' : '🔗 Acessar link'}</a>}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {pagamentos.length === 0 && docs.filter(d => ['boleto','nota_fiscal','comprovante'].includes(d.tipo)).length === 0 && (
                 <div className="card text-center py-12">
                   <CreditCard size={32} className="mx-auto mb-2 text-gray-200" />
                   <p className="text-gray-500 text-sm">Nenhum registro financeiro ainda</p>
