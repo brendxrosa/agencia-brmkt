@@ -27,6 +27,14 @@ export interface Cliente {
   tom_de_voz?: string
   objetivo?: string
   observacoes?: string
+  drive_url?: string
+  data_inicio_contrato?: string
+  data_fim_contrato?: string
+  forma_pagamento?: string
+  servicos_contratados?: string
+  contrato_url?: string
+  contrato_nome?: string
+  contrato_extraido_em?: string
   created_at: string
 }
 
