@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, X, Search, FileText, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle } from 'lucide-react'
+import { Plus, X, Search, FileText, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle, LayoutGrid, List } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -151,6 +151,7 @@ export default function DocsPage() {
   const [tiposCustom, setTiposCustom] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  const [vistaGrade, setVistaGrade] = useState(true)
   const [filtroCliente, setFiltroCliente] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -335,14 +336,26 @@ export default function DocsPage() {
           <option value="todos">Todos os status</option>
           {Object.entries(STATUS_APROVACAO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
+        <div className="flex items-center gap-1 bg-creme rounded-xl p-1 flex-shrink-0">
+          <button onClick={() => setVistaGrade(true)}
+            title="Grade"
+            className={cn('p-2 rounded-lg transition-all', vistaGrade ? 'bg-white shadow-card text-vinho' : 'text-gray-400 hover:text-gray-600')}>
+            <LayoutGrid size={15} />
+          </button>
+          <button onClick={() => setVistaGrade(false)}
+            title="Lista"
+            className={cn('p-2 rounded-lg transition-all', !vistaGrade ? 'bg-white shadow-card text-vinho' : 'text-gray-400 hover:text-gray-600')}>
+            <List size={15} />
+          </button>
+        </div>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{[1,2,3].map(i => <div key={i} className="card h-32 animate-pulse bg-creme" />)}</div>
+        <div className={vistaGrade ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-2'}>{[1,2,3].map(i => <div key={i} className={cn('card animate-pulse bg-creme', vistaGrade ? 'h-32' : 'h-14')} />)}</div>
       ) : filtrados.length === 0 ? (
         <div className="card text-center py-16"><FileText size={40} className="mx-auto mb-3 text-gray-300" /><p className="text-gray-500">Nenhum documento encontrado</p></div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={vistaGrade ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-2'}>
           {filtrados.map(doc => {
             const statusConfig = STATUS_APROVACAO[doc.status_aprovacao || 'rascunho']
             return (
