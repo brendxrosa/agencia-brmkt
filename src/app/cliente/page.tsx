@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { CheckCircle, Clock, MessageCircle, FileText, Calendar, AlertCircle, Square, PauseCircle, XCircle } from 'lucide-react'
+import { CheckCircle, Clock, MessageCircle, FileText, Calendar, AlertCircle, Square, PauseCircle, XCircle, CreditCard } from 'lucide-react'
 import { format, parseISO, isToday, isTomorrow, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
@@ -18,6 +18,8 @@ export default function ClienteDashboardPage() {
   const [tarefas, setTarefas] = useState<any[]>([])
   const [briefings, setBriefings] = useState<any[]>([])
   const [respostas, setRespostas] = useState<any[]>([])
+  const [docsPendentes, setDocsPendentes] = useState<any[]>([])
+  const [diasVencimento, setDiasVencimento] = useState<number | null>(null)
 
   useEffect(() => {
     // Verifica role — admin/equipe não pode acessar portal do cliente
@@ -89,6 +91,22 @@ export default function ClienteDashboardPage() {
         setTarefas(t || [])
         setBriefings(b || [])
         setRespostas(r || [])
+
+        // Docs aguardando aprovação
+        const { data: docs } = await supabase
+          .from('docs').select('id, titulo, tipo')
+          .eq('cliente_id', profile.cliente_id)
+          .eq('status_aprovacao', 'aguardando')
+          .order('updated_at', { ascending: false })
+        setDocsPendentes(docs || [])
+
+        // Dias pro próximo vencimento
+        if (c?.dia_vencimento) {
+          const hoje = new Date()
+          let proximo = new Date(hoje.getFullYear(), hoje.getMonth(), c.dia_vencimento)
+          if (proximo <= hoje) proximo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, c.dia_vencimento)
+          setDiasVencimento(Math.ceil((proximo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)))
+        }
       } catch (err) {
         console.error(err)
       } finally {
@@ -159,7 +177,7 @@ export default function ClienteDashboardPage() {
       </div>
 
       {/* Alertas */}
-      {(posts.length > 0 || mensagens.length > 0 || briefingsPendentes.length > 0) && (
+      {(posts.length > 0 || mensagens.length > 0 || briefingsPendentes.length > 0 || docsPendentes.length > 0 || (diasVencimento !== null && diasVencimento <= 5)) && (
         <div className="space-y-3">
           {posts.length > 0 && (
             <Link href="/cliente/aprovacoes" className="card border-l-4 border-l-orange-400 bg-orange-50/50 flex items-center gap-3 hover:shadow-card-hover transition-all">
@@ -190,10 +208,34 @@ export default function ClienteDashboardPage() {
               </div>
             </Link>
           )}
+          {docsPendentes.length > 0 && (
+            <Link href="/cliente/aprovacoes" className="card border-l-4 border-l-blue-400 bg-blue-50/30 flex items-center gap-3 hover:shadow-card-hover transition-all">
+              <FileText size={20} className="text-blue-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-700">{docsPendentes.length} documento(s) aguardando sua aprovação</p>
+                <p className="text-xs text-blue-600">{docsPendentes[0]?.titulo}{docsPendentes.length > 1 ? ` e mais ${docsPendentes.length - 1}` : ''}</p>
+              </div>
+              <span className="w-7 h-7 bg-blue-500 rounded-full text-white text-sm font-bold flex items-center justify-center flex-shrink-0">{docsPendentes.length}</span>
+            </Link>
+          )}
+          {diasVencimento !== null && diasVencimento <= 5 && (
+            <div className="card border-l-4 border-l-red-400 bg-red-50/30 flex items-center gap-3">
+              <CreditCard size={20} className="text-red-500 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-700">
+                  {diasVencimento === 0 ? 'Pagamento vence hoje!' : diasVencimento === 1 ? 'Pagamento vence amanhã' : `Pagamento vence em ${diasVencimento} dias`}
+                </p>
+                <p className="text-xs text-red-600">
+                  {cliente?.valor_mensal ? `R$ ${cliente.valor_mensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · ` : ''}
+                  Dia {cliente?.dia_vencimento} · {cliente?.forma_pagamento || 'consulte a agência'}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {posts.length === 0 && mensagens.length === 0 && briefingsPendentes.length === 0 && (
+      {posts.length === 0 && mensagens.length === 0 && briefingsPendentes.length === 0 && docsPendentes.length === 0 && (diasVencimento === null || diasVencimento > 5) && (
         <div className="card bg-emerald-50 border border-emerald-100 flex items-center gap-3">
           <CheckCircle size={20} className="text-emerald-500 flex-shrink-0" />
           <p className="text-sm text-emerald-700">Tudo em dia! Nenhuma pendência no momento. 🎉</p>
