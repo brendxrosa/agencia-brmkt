@@ -359,7 +359,7 @@ export default function DocsPage() {
           {filtrados.map(doc => {
             const statusConfig = STATUS_APROVACAO[doc.status_aprovacao || 'rascunho']
             return (
-              <div key={doc.id} className="card group">
+              <div key={doc.id} className={cn("card group", !vistaGrade && "flex items-center gap-3 !py-3")}>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 truncate">{doc.titulo}</p>
