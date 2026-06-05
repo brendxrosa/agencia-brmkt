@@ -1,0 +1,16 @@
+{
+  "name": "Agência BR MKT",
+  "short_name": "BR MKT",
+  "description": "Plataforma de Gestão — Brenda Rosa MKT",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF7F5",
+  "theme_color": "#6B0F2A",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-16x16.png",   "sizes": "16x16",   "type": "image/png" },
+    { "src": "/icons/icon-32x32.png",   "sizes": "32x32",   "type": "image/png" },
+    { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
