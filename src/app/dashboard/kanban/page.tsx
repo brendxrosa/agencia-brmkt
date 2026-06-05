@@ -272,8 +272,22 @@ export default function KanbanPage() {
   }
 
   async function moverPost(postId: string, novoStatus: string) {
-    await supabase.from('posts').update({ status_interno: novoStatus }).eq('id', postId)
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status_interno: novoStatus } : p))
+    const update: any = { status_interno: novoStatus }
+    // Ao reenviar pro cliente: reseta status_cliente pra não duplicar no histórico
+    if (novoStatus === 'aguardando_cliente') {
+      update.status_cliente = 'pendente'
+      update.etiqueta_cliente = null
+      update.data_aprovacao = null
+      // Registra na linha do tempo de comentários
+      await supabase.from('aprovacao_comentarios').insert({
+        doc_id: postId,
+        autor_nome: 'Agência BR MKT',
+        autor_role: 'admin',
+        conteudo: '🔄 Conteúdo revisado e reenviado para aprovação.',
+      })
+    }
+    await supabase.from('posts').update(update).eq('id', postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...update } : p))
   }
 
   async function excluirPost(id: string) {
