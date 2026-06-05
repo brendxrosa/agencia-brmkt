@@ -121,6 +121,84 @@ type PostImportado = {
   hora: string; ok: boolean; erro?: string
 }
 
+// ─── CamposPost movido para fora do componente pai (evita perda de foco) ───
+function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, COLUNAS, TIPO_MIDIA }: {
+  f: FormPost
+  set: (k: keyof FormPost, v: any) => void
+  showStatus?: boolean
+  clientes: any[]
+  STATUS_POST_LABELS: Record<string, string>
+  COLUNAS: readonly string[]
+  TIPO_MIDIA: { key: string; label: string }[]
+}) {
+  return (
+    <div className="space-y-4">
+      {!showStatus && (
+        <div>
+          <label className="label">Cliente *</label>
+          <select className="input" value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
+            <option value="">Selecione o cliente</option>
+            {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="label">Título *</label>
+        <input className="input" value={f.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Dicas de fisioterapia pós-lesão" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Tipo</label>
+          <select className="input" value={f.tipo} onChange={e => set('tipo', e.target.value as FormPost['tipo'])}>
+            <option value="reels">Reels</option>
+            <option value="carrossel">Carrossel</option>
+            <option value="feed">Feed</option>
+            <option value="stories">Stories</option>
+            <option value="tiktok">TikTok</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Data de publicação</label>
+          <input className="input" type="date" value={f.data_publicacao} onChange={e => set('data_publicacao', e.target.value)} />
+        </div>
+      </div>
+      {showStatus && (
+        <div>
+          <label className="label">Status</label>
+          <select className="input" value={f.status_interno} onChange={e => set('status_interno', e.target.value as FormPost['status_interno'])}>
+            {COLUNAS.map(c => <option key={c} value={c}>{STATUS_POST_LABELS[c]}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label className="label">Tema</label>
+        <input className="input" value={f.tema} onChange={e => set('tema', e.target.value)} placeholder="Ex: Educação, Bastidores..." />
+      </div>
+      <div>
+        <label className="label">Direcionamento</label>
+        <textarea className="input resize-none" rows={2} value={f.direcionamento} onChange={e => set('direcionamento', e.target.value)} placeholder="Instruções para a equipe..." />
+      </div>
+      <div>
+        <label className="label">Copy / Roteiro</label>
+        <textarea className="input resize-none" rows={3} value={f.copy} onChange={e => set('copy', e.target.value)} placeholder="Texto do post ou roteiro do vídeo..." />
+      </div>
+      <div>
+        <label className="label">Legenda</label>
+        <textarea className="input resize-none" rows={2} value={f.legenda} onChange={e => set('legenda', e.target.value)} placeholder="Legenda para o Instagram..." />
+      </div>
+      <div>
+        <label className="label flex items-center gap-1.5"><Paperclip size={13} /> Mídia / Arquivo</label>
+        <div className="flex gap-2">
+          <select className="input w-40 flex-shrink-0" value={f.tipo_midia} onChange={e => set('tipo_midia', e.target.value)}>
+            {TIPO_MIDIA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </select>
+          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://..." />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function KanbanPage() {
   const supabase = createClient()
   const [posts, setPosts] = useState<any[]>([])
@@ -307,72 +385,6 @@ export default function KanbanPage() {
   const setF = (k: keyof FormPost, v: any) => setForm(f => ({ ...f, [k]: v }))
   const setFE = (k: keyof FormPost, v: any) => setFormEditar(f => ({ ...f, [k]: v }))
 
-  const CamposPost = ({ f, set, showStatus = false }: { f: FormPost; set: (k: keyof FormPost, v: any) => void; showStatus?: boolean }) => (
-    <div className="space-y-4">
-      {!showStatus && (
-        <div>
-          <label className="label">Cliente *</label>
-          <select className="input" value={f.cliente_id} onChange={e => set('cliente_id', e.target.value)}>
-            <option value="">Selecione o cliente</option>
-            {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-          </select>
-        </div>
-      )}
-      <div>
-        <label className="label">Título *</label>
-        <input className="input" value={f.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Dicas de fisioterapia pós-lesão" />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="label">Tipo</label>
-          <select className="input" value={f.tipo} onChange={e => set('tipo', e.target.value as Post['tipo'])}>
-            <option value="reels">Reels</option>
-            <option value="carrossel">Carrossel</option>
-            <option value="feed">Feed</option>
-            <option value="stories">Stories</option>
-            <option value="tiktok">TikTok</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">Data de publicação</label>
-          <input className="input" type="date" value={f.data_publicacao} onChange={e => set('data_publicacao', e.target.value)} />
-        </div>
-      </div>
-      {showStatus && (
-        <div>
-          <label className="label">Status</label>
-          <select className="input" value={f.status_interno} onChange={e => set('status_interno', e.target.value as Post['status_interno'])}>
-            {COLUNAS.map(c => <option key={c} value={c}>{STATUS_POST_LABELS[c]}</option>)}
-          </select>
-        </div>
-      )}
-      <div>
-        <label className="label">Tema</label>
-        <input className="input" value={f.tema} onChange={e => set('tema', e.target.value)} placeholder="Ex: Educação, Bastidores..." />
-      </div>
-      <div>
-        <label className="label">Direcionamento</label>
-        <textarea className="input resize-none" rows={2} value={f.direcionamento} onChange={e => set('direcionamento', e.target.value)} placeholder="Instruções para a equipe..." />
-      </div>
-      <div>
-        <label className="label">Copy / Roteiro</label>
-        <textarea className="input resize-none" rows={3} value={f.copy} onChange={e => set('copy', e.target.value)} placeholder="Texto do post ou roteiro do vídeo..." />
-      </div>
-      <div>
-        <label className="label">Legenda</label>
-        <textarea className="input resize-none" rows={2} value={f.legenda} onChange={e => set('legenda', e.target.value)} placeholder="Legenda para o Instagram..." />
-      </div>
-      <div>
-        <label className="label flex items-center gap-1.5"><Paperclip size={13} /> Mídia / Arquivo</label>
-        <div className="flex gap-2">
-          <select className="input w-40 flex-shrink-0" value={f.tipo_midia} onChange={e => set('tipo_midia', e.target.value)}>
-            {TIPO_MIDIA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
-          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://..." />
-        </div>
-      </div>
-    </div>
-  )
 
   const validosCount = importPosts.filter(p => p.ok).length
   const invalidsCount = importPosts.filter(p => !p.ok).length
@@ -635,7 +647,7 @@ export default function KanbanPage() {
             </div>
 
             {modoEditar ? (
-              <CamposPost f={formEditar} set={setFE} showStatus={true} />
+              <CamposPost f={formEditar} set={setFE} showStatus={true} clientes={clientes} STATUS_POST_LABELS={STATUS_POST_LABELS} COLUNAS={COLUNAS} TIPO_MIDIA={TIPO_MIDIA} />
             ) : (
               <div className="space-y-4">
                 <div>
@@ -708,7 +720,7 @@ export default function KanbanPage() {
             <h2 className="font-display text-xl font-semibold text-vinho">Novo post</h2>
             <button onClick={() => setModalNovo(false)} className="btn-ghost p-2"><X size={18} /></button>
           </div>
-          <CamposPost f={form} set={setF} />
+          <CamposPost f={form} set={setF} clientes={clientes} STATUS_POST_LABELS={STATUS_POST_LABELS} COLUNAS={COLUNAS} TIPO_MIDIA={TIPO_MIDIA} />
           <div className="flex gap-3 pt-4">
             <button onClick={() => setModalNovo(false)} className="btn-secondary flex-1">Cancelar</button>
             <button onClick={criarPost} className="btn-primary flex-1 justify-center">Criar post</button>
