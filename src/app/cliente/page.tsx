@@ -20,6 +20,7 @@ export default function ClienteDashboardPage() {
   const [respostas, setRespostas] = useState<any[]>([])
   const [docsPendentes, setDocsPendentes] = useState<any[]>([])
   const [diasVencimento, setDiasVencimento] = useState<number | null>(null)
+  const [pagamentosPendentes, setPagamentosPendentes] = useState<any[]>([])
 
   useEffect(() => {
     // Verifica role — admin/equipe não pode acessar portal do cliente
@@ -107,6 +108,14 @@ export default function ClienteDashboardPage() {
           if (proximo <= hoje) proximo = new Date(hoje.getFullYear(), hoje.getMonth() + 1, c.dia_vencimento)
           setDiasVencimento(Math.ceil((proximo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)))
         }
+
+        // Pagamentos pendentes/atrasados emitidos pela agência
+        const { data: pags } = await supabase
+          .from('pagamentos').select('*')
+          .eq('cliente_id', profile.cliente_id)
+          .in('status', ['pendente', 'atrasado'])
+          .order('vencimento', { ascending: true })
+        setPagamentosPendentes(pags || [])
       } catch (err) {
         console.error(err)
       } finally {
@@ -177,7 +186,7 @@ export default function ClienteDashboardPage() {
       </div>
 
       {/* Alertas */}
-      {(posts.length > 0 || mensagens.length > 0 || briefingsPendentes.length > 0 || docsPendentes.length > 0 || (diasVencimento !== null && diasVencimento <= 5)) && (
+      {(posts.length > 0 || mensagens.length > 0 || briefingsPendentes.length > 0 || docsPendentes.length > 0 || (diasVencimento !== null && diasVencimento <= 5) || pagamentosPendentes.length > 0) && (
         <div className="space-y-3">
           {posts.length > 0 && (
             <Link href="/cliente/aprovacoes" className="card border-l-4 border-l-orange-400 bg-orange-50/50 flex items-center gap-3 hover:shadow-card-hover transition-all">
@@ -218,14 +227,33 @@ export default function ClienteDashboardPage() {
               <span className="w-7 h-7 bg-blue-500 rounded-full text-white text-sm font-bold flex items-center justify-center flex-shrink-0">{docsPendentes.length}</span>
             </Link>
           )}
-          {diasVencimento !== null && diasVencimento <= 5 && (
-            <div className="card border-l-4 border-l-red-400 bg-red-50/30 flex items-center gap-3">
-              <CreditCard size={20} className="text-red-500 flex-shrink-0" />
+          {pagamentosPendentes.length > 0 && pagamentosPendentes.map(pag => {
+            const venc = new Date(pag.vencimento + 'T00:00:00')
+            const hoje = new Date(); hoje.setHours(0,0,0,0)
+            const diff = Math.ceil((venc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
+            const atrasado = pag.status === 'atrasado' || diff < 0
+            return (
+              <div key={pag.id} className={`card border-l-4 flex items-center gap-3 ${atrasado ? 'border-l-red-500 bg-red-50/30' : 'border-l-orange-400 bg-orange-50/20'}`}>
+                <CreditCard size={20} className={atrasado ? 'text-red-500 flex-shrink-0' : 'text-orange-500 flex-shrink-0'} />
+                <div className="flex-1">
+                  <p className={`text-sm font-semibold ${atrasado ? 'text-red-700' : 'text-orange-700'}`}>
+                    {atrasado ? `⚠️ Pagamento atrasado — ${pag.mes_referencia}` : diff === 0 ? `Pagamento vence hoje — ${pag.mes_referencia}` : `Pagamento vence em ${diff} dia(s) — ${pag.mes_referencia}`}
+                  </p>
+                  <p className={`text-xs ${atrasado ? 'text-red-600' : 'text-orange-600'}`}>
+                    R$ {pag.valor?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Venc. {new Date(pag.vencimento + 'T00:00:00').toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+          {pagamentosPendentes.length === 0 && diasVencimento !== null && diasVencimento <= 5 && (
+            <div className="card border-l-4 border-l-orange-400 bg-orange-50/20 flex items-center gap-3">
+              <CreditCard size={20} className="text-orange-500 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-semibold text-red-700">
-                  {diasVencimento === 0 ? 'Pagamento vence hoje!' : diasVencimento === 1 ? 'Pagamento vence amanhã' : `Pagamento vence em ${diasVencimento} dias`}
+                <p className="text-sm font-semibold text-orange-700">
+                  {diasVencimento === 0 ? 'Pagamento vence hoje!' : `Pagamento vence em ${diasVencimento} dia(s)`}
                 </p>
-                <p className="text-xs text-red-600">
+                <p className="text-xs text-orange-600">
                   {cliente?.valor_mensal ? `R$ ${cliente.valor_mensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · ` : ''}
                   Dia {cliente?.dia_vencimento} · {cliente?.forma_pagamento || 'consulte a agência'}
                 </p>
@@ -235,7 +263,7 @@ export default function ClienteDashboardPage() {
         </div>
       )}
 
-      {posts.length === 0 && mensagens.length === 0 && briefingsPendentes.length === 0 && docsPendentes.length === 0 && (diasVencimento === null || diasVencimento > 5) && (
+      {posts.length === 0 && mensagens.length === 0 && briefingsPendentes.length === 0 && docsPendentes.length === 0 && (diasVencimento === null || diasVencimento > 5) && pagamentosPendentes.length === 0 && (
         <div className="card bg-emerald-50 border border-emerald-100 flex items-center gap-3">
           <CheckCircle size={20} className="text-emerald-500 flex-shrink-0" />
           <p className="text-sm text-emerald-700">Tudo em dia! Nenhuma pendência no momento. 🎉</p>
