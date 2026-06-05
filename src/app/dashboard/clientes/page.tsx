@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { type Cliente } from '@/types'
 import { formatCurrency, getInitials, cn, CORES_CLIENTES } from '@/lib/utils'
 import { Plus, Search, Users, MoreVertical, Instagram, Phone, Mail, X, FileText, Send } from 'lucide-react'
+import ContratoUpload from '@/components/ContratoUpload'
 
 const SEGMENTOS = ['Saúde', 'Beleza', 'Moda', 'Esporte', 'Alimentação', 'Educação', 'Tecnologia', 'Imobiliário', 'Jurídico', 'Outro']
 const PLANOS = ['Básico', 'Intermediário', 'Premium', 'Personalizado']
@@ -289,6 +290,34 @@ async function salvar(f: any) {
               <div><label className="label">Início do contrato</label><input className="input" type="date" value={(form as any).data_inicio_contrato || ''} onChange={e => setForm(f => ({ ...f, data_inicio_contrato: e.target.value }))} /></div>
               <div><label className="label">Fim do contrato</label><input className="input" type="date" value={(form as any).data_fim_contrato || ''} onChange={e => setForm(f => ({ ...f, data_fim_contrato: e.target.value }))} /></div>
             </div>
+
+            {/* Upload de contrato com extração IA — só disponível ao editar cliente existente */}
+            {editando?.id && (
+              <div>
+                <label className="label flex items-center gap-2">
+                  📄 Contrato
+                  {(editando as any).contrato_nome && (
+                    <span className="text-xs text-gray-400 font-normal">· {(editando as any).contrato_nome}</span>
+                  )}
+                </label>
+                {(editando as any).contrato_nome ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 text-sm text-emerald-700">
+                      ✓ Contrato já enviado — faça novo upload para substituir
+                    </div>
+                    <ContratoUpload
+                      clienteId={editando.id}
+                      onExtraido={(dados) => setForm(f => ({ ...f, ...dados }))}
+                    />
+                  </div>
+                ) : (
+                  <ContratoUpload
+                    clienteId={editando.id}
+                    onExtraido={(dados) => setForm(f => ({ ...f, ...dados }))}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Drive */}
             <div><label className="label">Link do Google Drive</label><input className="input" value={(form as any).drive_url || ''} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))} placeholder="https://drive.google.com/..." /></div>
