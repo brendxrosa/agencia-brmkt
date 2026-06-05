@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { User, Mail, Phone, Instagram, Building, Eye, EyeOff, Save, KeyRound } from 'lucide-react'
+import { User, Mail, Phone, Instagram, Building, Eye, EyeOff, Save, KeyRound, FileCheck, Download } from 'lucide-react'
 
 export default function ClientePerfilPage() {
   const supabase = createClient()
@@ -144,6 +144,66 @@ export default function ClientePerfilPage() {
             <p className="text-sm font-medium text-gray-800">{cliente.plano} · R$ {cliente.valor_mensal?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</p>
           </div>
           <p className="text-xs text-gray-400">Para atualizar seus dados cadastrais, entre em contato com a agência.</p>
+        </div>
+      )}
+
+      {/* Meu Contrato */}
+      {cliente && (cliente.plano || cliente.data_fim_contrato || cliente.contrato_url || cliente.servicos_contratados) && (
+        <div className="card border-l-4 border-l-vinho">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <FileCheck size={18} className="text-vinho" />
+              <h3 className="section-title text-base">Meu contrato</h3>
+            </div>
+            {cliente.contrato_url && (
+              <a href={cliente.contrato_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-vinho hover:underline font-medium">
+                <Download size={13} /> Baixar contrato
+              </a>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {cliente.plano && <div>
+              <p className="text-xs text-gray-400">Plano</p>
+              <p className="font-medium text-gray-800">{cliente.plano}</p>
+            </div>}
+            {cliente.valor_mensal && <div>
+              <p className="text-xs text-gray-400">Valor mensal</p>
+              <p className="font-medium text-gray-800">R$ {cliente.valor_mensal?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            </div>}
+            {cliente.dia_vencimento && <div>
+              <p className="text-xs text-gray-400">Vencimento</p>
+              <p className="font-medium text-gray-800">Todo dia {cliente.dia_vencimento}</p>
+            </div>}
+            {cliente.forma_pagamento && <div>
+              <p className="text-xs text-gray-400">Forma de pagamento</p>
+              <p className="font-medium text-gray-800 capitalize">{cliente.forma_pagamento}</p>
+            </div>}
+            {cliente.data_inicio_contrato && <div>
+              <p className="text-xs text-gray-400">Início</p>
+              <p className="font-medium text-gray-800">{new Date(cliente.data_inicio_contrato + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
+            </div>}
+            {cliente.data_fim_contrato && <div>
+              <p className="text-xs text-gray-400">Término</p>
+              <p className="font-medium text-gray-800">{new Date(cliente.data_fim_contrato + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
+            </div>}
+          </div>
+          {cliente.servicos_contratados && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-400 mb-1.5">Serviços incluídos</p>
+              <div className="flex flex-wrap gap-1.5">
+                {cliente.servicos_contratados.split(/[,;\n]/).map((s: string, i: number) => s.trim() && (
+                  <span key={i} className="badge bg-vinho/10 text-vinho text-xs">{s.trim()}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {cliente.observacoes && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-400">Observações</p>
+              <p className="text-sm text-gray-500 italic mt-0.5">{cliente.observacoes}</p>
+            </div>
+          )}
         </div>
       )}
 
