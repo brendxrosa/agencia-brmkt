@@ -115,7 +115,7 @@ export default function ClienteBriefingsPage() {
       `BRIEFING: ${briefing.nome}`,
       `Cliente: ${clienteId}`,
       `Data: ${new Date().toLocaleDateString('pt-BR')}`,
-      `${'─'.repeat(50)}`,
+      '─'.repeat(50),
       '',
     ]
     // Percorre categorias e perguntas
@@ -137,8 +137,7 @@ export default function ClienteBriefingsPage() {
       })
       linhas.push('')
     })
-    const blob = new Blob([linhas.join('
-')], { type: 'text/plain;charset=utf-8' })
+    const blob = new Blob([linhas.join('\n')], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
