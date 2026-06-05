@@ -130,13 +130,35 @@ export default function ClienteDocsPage() {
                   {clienteInfo.servicos_contratados && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <p className="text-xs text-gray-400 mb-1">Serviços incluídos</p>
-                      <p className="text-sm text-gray-700">{clienteInfo.servicos_contratados}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {clienteInfo.servicos_contratados.split(/[,;\n]/).map((s: string, i: number) => s.trim() && (
+                          <span key={i} className="badge bg-vinho/10 text-vinho text-xs">{s.trim()}</span>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {clienteInfo.objetivo && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <p className="text-xs text-gray-400">Objetivo</p>
                       <p className="text-sm text-gray-700 mt-0.5">{clienteInfo.objetivo}</p>
+                    </div>
+                  )}
+                  {clienteInfo.observacoes && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-400">Observações do contrato</p>
+                      <p className="text-sm text-gray-500 italic mt-0.5">{clienteInfo.observacoes}</p>
+                    </div>
+                  )}
+                  {clienteInfo.contrato_url && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <a href={clienteInfo.contrato_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-vinho text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-vinho/90 transition-all">
+                        ⬇ Baixar meu contrato
+                      </a>
+                      <p className="text-xs text-gray-400 mt-1.5">
+                        {clienteInfo.contrato_nome || 'Contrato de prestação de serviços'}
+                        {clienteInfo.contrato_extraido_em ? ` · atualizado em ${new Date(clienteInfo.contrato_extraido_em).toLocaleDateString('pt-BR')}` : ''}
+                      </p>
                     </div>
                   )}
                 </div>
