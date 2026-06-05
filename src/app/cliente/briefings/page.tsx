@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import { FileText, CheckCircle, ChevronDown, ChevronUp, Send, Upload } from 'lucide-react'
+import { FileText, CheckCircle, ChevronDown, ChevronUp, Send, Upload, Download } from 'lucide-react'
 import { CATEGORIAS } from '@/lib/briefings-data'
 
 export default function ClienteBriefingsPage() {
@@ -107,6 +107,44 @@ export default function ClienteBriefingsPage() {
     if (error) return alert('Erro ao fazer upload: ' + error.message)
     const { data } = supabase.storage.from('briefings').getPublicUrl(path)
     setResposta(perguntaId, data.publicUrl)
+  }
+
+  function downloadBriefing(briefing: any, resposta: any) {
+    if (!resposta?.respostas) return
+    const linhas: string[] = [
+      `BRIEFING: ${briefing.nome}`,
+      `Cliente: ${clienteId}`,
+      `Data: ${new Date().toLocaleDateString('pt-BR')}`,
+      `${'─'.repeat(50)}`,
+      '',
+    ]
+    // Percorre categorias e perguntas
+    const cats = CATEGORIAS as any[]
+    cats.forEach(cat => {
+      const perguntas = briefing.perguntas?.filter((p: any) => p.categoria === cat.id) || []
+      if (perguntas.length === 0) return
+      linhas.push(`▸ ${cat.label.toUpperCase()}`)
+      perguntas.forEach((p: any) => {
+        const resp = resposta.respostas[p.id]
+        if (!resp) return
+        linhas.push(``)
+        linhas.push(`${p.pergunta}`)
+        if (Array.isArray(resp)) {
+          linhas.push(`→ ${resp.join(', ')}`)
+        } else {
+          linhas.push(`→ ${resp}`)
+        }
+      })
+      linhas.push('')
+    })
+    const blob = new Blob([linhas.join('
+')], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `briefing-${briefing.nome.toLowerCase().replace(/\s+/g, '-')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const concluidos = respostas.filter(r => r.concluido).length
