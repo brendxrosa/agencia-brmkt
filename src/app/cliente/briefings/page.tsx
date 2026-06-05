@@ -119,16 +119,15 @@ export default function ClienteBriefingsPage() {
       '',
     ]
     // Percorre categorias e perguntas
-    const cats = CATEGORIAS as any[]
-    cats.forEach(cat => {
-      const perguntas = briefing.perguntas?.filter((p: any) => p.categoria === cat.id) || []
+    Object.entries(CATEGORIAS).forEach(([catId, catLabel]) => {
+      const perguntas = briefing.perguntas?.filter((p: any) => p.categoria === catId) || []
       if (perguntas.length === 0) return
-      linhas.push(`▸ ${cat.label.toUpperCase()}`)
+      linhas.push(`▸ ${catLabel.toUpperCase()}`)
       perguntas.forEach((p: any) => {
         const resp = resposta.respostas[p.id]
         if (!resp) return
-        linhas.push(``)
-        linhas.push(`${p.pergunta}`)
+        linhas.push('')
+        linhas.push(p.pergunta)
         if (Array.isArray(resp)) {
           linhas.push(`→ ${resp.join(', ')}`)
         } else {
