@@ -16,6 +16,9 @@ const TIPO_CONFIG: Record<string, { label: string; icon: any; cor: string }> = {
   planejamento:{ label: 'Planejamento',     icon: FileText,  cor: 'bg-teal-100 text-teal-700' },
   relatorio:   { label: 'Relatório',        icon: FileText,  cor: 'bg-yellow-100 text-yellow-700' },
   outro:       { label: 'Outro',            icon: FileText,  cor: 'bg-rose-100 text-rose-700' },
+  boleto:      { label: 'Boleto',           icon: CreditCard, cor: 'bg-yellow-100 text-yellow-700' },
+  nota_fiscal: { label: 'Nota Fiscal',      icon: FileCheck,  cor: 'bg-green-100 text-green-700' },
+  comprovante: { label: 'Comprovante',      icon: FileCheck,  cor: 'bg-teal-100 text-teal-700' },
 }
 
 export default function ClienteDocsPage() {
@@ -162,9 +165,54 @@ export default function ClienteDocsPage() {
                   <p className="text-gray-400 text-xs mt-1">A agência irá adicionar seus documentos aqui</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-4">
+                  {/* Boletos e comprovantes → seção financeira */}
+                  {docs.filter(d => ['boleto','nota_fiscal','comprovante'].includes(d.tipo)).length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="section-title text-sm text-yellow-700">💰 Financeiro</h3>
+                      {docs.filter(d => ['boleto','nota_fiscal','comprovante'].includes(d.tipo)).map(doc => {
+                        const config = tipoConfig(doc.tipo)
+                        const Icon = config.icon
+                        const aberto = docAberto === doc.id
+                        return (
+                          <div key={doc.id} className="card border-l-2 border-l-yellow-300">
+                            <button onClick={() => setDocAberto(aberto ? null : doc.id)}
+                              className="w-full flex items-center gap-3 text-left">
+                              <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0', config.cor.split(' ')[0])}>
+                                <Icon size={16} className={config.cor.split(' ')[1]} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{doc.titulo}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className={cn('badge text-xs', config.cor)}>{config.label}</span>
+                                  <span className="text-xs text-gray-400">{formatDate(doc.updated_at, "dd/MM/yyyy")}</span>
+                                </div>
+                              </div>
+                              {aberto ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                            </button>
+                            {aberto && (
+                              <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                                {doc.conteudo && <div className="bg-creme rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{doc.conteudo}</div>}
+                                {doc.link_arquivo && (/\.pdf$/i.test(doc.link_arquivo) ? (
+                                  <div className="rounded-xl overflow-hidden border border-gray-200">
+                                    <div className="flex items-center justify-between px-3 py-2 bg-creme border-b border-gray-200">
+                                      <span className="text-xs font-medium text-gray-600">📄 PDF</span>
+                                      <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer" className="text-xs text-vinho hover:underline">⬇ Baixar</a>
+                                    </div>
+                                    <iframe src={doc.link_arquivo} className="w-full h-52" title={doc.titulo} />
+                                  </div>
+                                ) : <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-vinho hover:underline">⬇ Baixar arquivo</a>)}
+                                {doc.drive_url && <a href={doc.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-blue-600 hover:underline">{doc.drive_url.includes('drive.google') ? '🔗 Abrir no Google Drive' : '🔗 Acessar link'}</a>}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <div className="space-y-2">
                   <h3 className="section-title text-sm">Documentos compartilhados</h3>
-                  {docs.map(doc => {
+                  {docs.filter(d => !['boleto','nota_fiscal','comprovante'].includes(d.tipo)).map(doc => {
                     const config = tipoConfig(doc.tipo)
                     const Icon = config.icon
                     const aberto = docAberto === doc.id
@@ -217,7 +265,9 @@ export default function ClienteDocsPage() {
                             {doc.drive_url && (
                               <a href={doc.drive_url} target="_blank" rel="noopener noreferrer"
                                 className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
-                                🔗 Abrir no Google Drive
+                                {doc.drive_url.includes('drive.google') || doc.drive_url.includes('docs.google')
+                                  ? '🔗 Abrir no Google Drive'
+                                  : '🔗 Acessar link'}
                               </a>
                             )}
                             {!doc.conteudo && !doc.link_arquivo && !doc.drive_url && (
@@ -228,6 +278,7 @@ export default function ClienteDocsPage() {
                       </div>
                     )
                   })}
+                </div>
                 </div>
               )}
             </div>
