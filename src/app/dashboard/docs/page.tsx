@@ -221,7 +221,12 @@ export default function DocsPage() {
   }
 
   async function uploadArquivo(file: File): Promise<string> {
-    const path = `docs/${Date.now()}-${file.name}`
+    const nomeSeguro = file.name
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[|\s]+/g, '-')
+      .replace(/[^a-zA-Z0-9._-]/g, '')
+      .replace(/-+/g, '-')
+    const path = `docs/${Date.now()}-${nomeSeguro}`
     const { error } = await supabase.storage.from('docs').upload(path, file, { upsert: true })
     if (error) throw new Error('Erro no upload: ' + error.message)
     const { data } = supabase.storage.from('docs').getPublicUrl(path)
