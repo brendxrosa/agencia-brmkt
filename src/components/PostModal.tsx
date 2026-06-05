@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate, STATUS_POST_LABELS, STATUS_POST_CORES, ETIQUETA_LABELS, ETIQUETA_CORES } from '@/lib/utils'
-import { X, CheckCircle, XCircle, Paperclip, Send, Download, MessageCircle, Tag } from 'lucide-react'
+import { X, Paperclip, Send, MessageCircle, Tag, AlertCircle, ExternalLink, Image as ImageIcon } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -15,6 +15,9 @@ const ETIQUETAS_FEEDBACK = [
   { key: 'ajuste_data', label: 'Ajuste na data' },
   { key: 'reprovado', label: '✗ Reprovar' },
 ]
+
+const isVideo = (url: string) => /\.(mp4|mov|webm|avi)$/i.test(url) || url.includes('youtube') || url.includes('vimeo') || url.includes('drive.google') 
+const isImage = (url: string) => /\.(png|jpg|jpeg|gif|webp)$/i.test(url)
 
 interface Props {
   post: any
@@ -28,48 +31,82 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
   const supabase = createClient()
   const [comentarios, setComentarios] = useState<any[]>([])
   const [comentarioTexto, setComentarioTexto] = useState('')
-  const [carregouComents, setCarregouComents] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [atualizando, setAtualizando] = useState(false)
   const [etiquetaSelecionada, setEtiquetaSelecionada] = useState<string>(post.etiqueta_cliente || '')
   const [mostrarEtiquetas, setMostrarEtiquetas] = useState(false)
+  // Reprovar exige etiqueta + comentário
+  const [etiquetaPendente, setEtiquetaPendente] = useState<string | null>(null)
+  const [erroComentario, setErroComentario] = useState('')
+  const comentarioRef = useRef<HTMLInputElement>(null)
 
-  async function carregarComentarios() {
-    if (carregouComents) return
-    const { data } = await supabase
-      .from('aprovacao_comentarios').select('*')
-      .eq('doc_id', post.id).order('created_at')
-    setComentarios(data || [])
-    setCarregouComents(true)
+  useEffect(() => {
+    async function carregar() {
+      const { data } = await supabase
+        .from('aprovacao_comentarios').select('*')
+        .eq('doc_id', post.id).order('created_at')
+      setComentarios(data || [])
+    }
+    carregar()
+  }, [post.id])
+
+  // Quando seleciona etiqueta de reprovação → exige comentário antes de confirmar
+  function selecionarEtiqueta(etiqueta: string) {
+    const precisaComentario = etiqueta !== 'aprovado'
+    if (precisaComentario) {
+      setEtiquetaPendente(etiqueta)
+      setErroComentario('')
+      setTimeout(() => comentarioRef.current?.focus(), 100)
+    } else {
+      aplicarEtiqueta(etiqueta, '')
+    }
   }
 
-  useState(() => { carregarComentarios() })
+  async function confirmarComComentario() {
+    if (!etiquetaPendente) return
+    const texto = comentarioTexto.trim()
+    if (!texto) {
+      setErroComentario('Explica o motivo antes de enviar — o cliente vai precisar saber o que ajustar.')
+      comentarioRef.current?.focus()
+      return
+    }
+    await aplicarEtiqueta(etiquetaPendente, texto)
+    setEtiquetaPendente(null)
+  }
 
-  async function aplicarEtiqueta(etiqueta: string) {
+  async function aplicarEtiqueta(etiqueta: string, comentarioAdicional: string) {
     setAtualizando(true)
     const isAprovado = etiqueta === 'aprovado'
-    const isReprovado = etiqueta === 'reprovado'
 
     await supabase.from('posts').update({
       etiqueta_cliente: etiqueta,
-      status_cliente: isAprovado ? 'aprovado' : isReprovado ? 'reprovado' : 'reprovado',
+      status_cliente: isAprovado ? 'aprovado' : 'reprovado',
       status_interno: isAprovado ? 'aprovado' : 'revisao_interna',
       data_aprovacao: new Date().toISOString(),
     }).eq('id', post.id)
 
+    // Registra etiqueta como comentário automático
     await supabase.from('aprovacao_comentarios').insert({
-      doc_id: post.id,
-      autor_id: userId,
-      autor_nome: userName,
-      autor_role: 'cliente',
+      doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: 'cliente',
       conteudo: `🏷️ ${ETIQUETA_LABELS[etiqueta] || etiqueta}`,
     })
 
+    // Se tiver comentário adicional, registra separado
+    if (comentarioAdicional) {
+      await supabase.from('aprovacao_comentarios').insert({
+        doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: 'cliente',
+        conteudo: comentarioAdicional,
+      })
+    }
+
+    // Recarrega comentários
+    const { data } = await supabase.from('aprovacao_comentarios').select('*').eq('doc_id', post.id).order('created_at')
+    setComentarios(data || [])
+    setComentarioTexto('')
     setEtiquetaSelecionada(etiqueta)
     setMostrarEtiquetas(false)
     setAtualizando(false)
     onAtualizado()
-    await carregarComentarios()
   }
 
   async function enviarComentario() {
@@ -77,22 +114,18 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
     if (!texto) return
     setEnviando(true)
     await supabase.from('aprovacao_comentarios').insert({
-      doc_id: post.id,
-      autor_id: userId,
-      autor_nome: userName,
-      autor_role: 'cliente',
+      doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: 'cliente',
       conteudo: texto,
     })
     setComentarioTexto('')
-    setEnviando(false)
-    const { data } = await supabase
-      .from('aprovacao_comentarios').select('*')
-      .eq('doc_id', post.id).order('created_at')
+    const { data } = await supabase.from('aprovacao_comentarios').select('*').eq('doc_id', post.id).order('created_at')
     setComentarios(data || [])
+    setEnviando(false)
   }
 
   const aguardando = post.status_interno === 'aguardando_cliente'
   const concluido = post.status_interno === 'concluido'
+  const midia = post.link_midia
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -102,6 +135,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
         concluido && 'opacity-80'
       )}>
         <div className="p-6 space-y-4">
+
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
@@ -111,9 +145,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
                 <span className={cn('badge text-xs', STATUS_POST_CORES[post.status_interno])}>
                   {STATUS_POST_LABELS[post.status_interno]}
                 </span>
-                {post.data_publicacao && (
-                  <span className="text-xs text-gray-400">📅 {formatDate(post.data_publicacao)}</span>
-                )}
+                {post.data_publicacao && <span className="text-xs text-gray-400">📅 {formatDate(post.data_publicacao)}</span>}
                 {etiquetaSelecionada && ETIQUETA_LABELS[etiquetaSelecionada] && (
                   <span className={cn('badge text-xs flex items-center gap-1', ETIQUETA_CORES[etiquetaSelecionada])}>
                     <Tag size={9} /> {ETIQUETA_LABELS[etiquetaSelecionada]}
@@ -125,18 +157,8 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
           </div>
 
           {/* Conteúdo */}
-          {post.tema && (
-            <div>
-              <p className="label">Tema</p>
-              <p className="text-sm text-gray-700">{post.tema}</p>
-            </div>
-          )}
-          {post.abordagem && (
-            <div>
-              <p className="label">Abordagem</p>
-              <p className="text-sm text-gray-600">{post.abordagem}</p>
-            </div>
-          )}
+          {post.tema && <div><p className="label">Tema</p><p className="text-sm text-gray-700">{post.tema}</p></div>}
+          {post.abordagem && <div><p className="label">Abordagem</p><p className="text-sm text-gray-600">{post.abordagem}</p></div>}
           {post.copy && (
             <div className="bg-creme rounded-xl p-3">
               <p className="label mb-1">Copy / Roteiro</p>
@@ -149,37 +171,82 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.legenda}</p>
             </div>
           )}
-          {post.direcionamento && (
+          {post.direcionamento && <div><p className="label">Direcionamento</p><p className="text-sm text-gray-500 italic">{post.direcionamento}</p></div>}
+
+          {/* Preview de mídia */}
+          {midia && (
             <div>
-              <p className="label">Direcionamento</p>
-              <p className="text-sm text-gray-500 italic">{post.direcionamento}</p>
+              <p className="label mb-1.5">Arte / Arquivo</p>
+              {isImage(midia) ? (
+                <img src={midia} alt="Arte do post" className="w-full max-h-64 object-contain rounded-xl border border-gray-100 bg-gray-50" />
+              ) : isVideo(midia) ? (
+                <a href={midia} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-100 rounded-xl hover:bg-creme transition-all">
+                  <div className="w-10 h-10 bg-vinho/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <ExternalLink size={18} className="text-vinho" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Ver vídeo</p>
+                    <p className="text-xs text-gray-400 truncate max-w-64">{midia}</p>
+                  </div>
+                </a>
+              ) : (
+                <a href={midia} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-vinho hover:underline">
+                  <Paperclip size={14} /> Ver arquivo
+                </a>
+              )}
             </div>
           )}
-          {post.link_midia && (
-            <a href={post.link_midia} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm text-vinho hover:underline">
-              <Paperclip size={14} /> Ver arte / arquivo
-            </a>
-          )}
 
-          {/* Etiquetas de aprovação */}
+          {/* Etiquetas — cliente */}
           {aguardando && (
             <div className="pt-2 border-t border-gray-100">
-              {!mostrarEtiquetas ? (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => { setMostrarEtiquetas(true) }}
-                    className="flex-1 flex items-center justify-center gap-2 bg-vinho text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-vinho/90 transition-all">
-                    <Tag size={15} /> Dar feedback
+              {!mostrarEtiquetas && !etiquetaPendente ? (
+                <button onClick={() => setMostrarEtiquetas(true)}
+                  className="w-full flex items-center justify-center gap-2 bg-vinho text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-vinho/90 transition-all">
+                  <Tag size={15} /> Dar feedback
+                </button>
+              ) : etiquetaPendente ? (
+                /* Fluxo de reprovação: etiqueta escolhida, aguarda comentário */
+                <div className="space-y-3">
+                  <div className={cn('flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
+                    etiquetaPendente === 'reprovado' ? 'bg-red-50 text-red-700' : 'bg-orange-50 text-orange-700')}>
+                    <Tag size={13} /> {ETIQUETA_LABELS[etiquetaPendente]}
+                    <button onClick={() => { setEtiquetaPendente(null); setErroComentario('') }} className="ml-auto text-gray-400 hover:text-gray-600">
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-1.5">
+                      Comentário obrigatório — o que precisa ser ajustado?
+                    </p>
+                    <input
+                      ref={comentarioRef}
+                      className={cn('input w-full text-sm', erroComentario && 'border-red-300 ring-1 ring-red-200')}
+                      value={comentarioTexto}
+                      onChange={e => { setComentarioTexto(e.target.value); setErroComentario('') }}
+                      onKeyDown={e => e.key === 'Enter' && confirmarComComentario()}
+                      placeholder="Ex: Ajustar o tom da legenda, está muito formal..."
+                    />
+                    {erroComentario && (
+                      <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                        <AlertCircle size={11} /> {erroComentario}
+                      </p>
+                    )}
+                  </div>
+                  <button onClick={confirmarComComentario} disabled={atualizando}
+                    className="w-full flex items-center justify-center gap-2 bg-vinho text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-vinho/90 transition-all">
+                    {atualizando ? 'Enviando...' : 'Confirmar feedback'}
                   </button>
                 </div>
               ) : (
+                /* Grid de etiquetas */
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Selecione o feedback:</p>
                   <div className="grid grid-cols-2 gap-2">
                     {ETIQUETAS_FEEDBACK.map(e => (
-                      <button key={e.key} onClick={() => aplicarEtiqueta(e.key)}
-                        disabled={atualizando}
+                      <button key={e.key} onClick={() => selecionarEtiqueta(e.key)} disabled={atualizando}
                         className={cn(
                           'px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border',
                           e.key === 'aprovado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' :
@@ -190,8 +257,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => setMostrarEtiquetas(false)}
-                    className="text-xs text-gray-400 hover:text-gray-600 w-full text-center py-1">
+                  <button onClick={() => setMostrarEtiquetas(false)} className="text-xs text-gray-400 hover:text-gray-600 w-full text-center py-1">
                     Cancelar
                   </button>
                 </div>
@@ -199,15 +265,15 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
             </div>
           )}
 
-          {/* Comentários */}
+          {/* Comentários — visível para todos (cliente e admin) */}
           <div className="pt-2 border-t border-gray-100 space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-              <MessageCircle size={12} /> Comentários
+              <MessageCircle size={12} /> Comentários {comentarios.length > 0 && <span className="badge bg-gray-100 text-gray-500">{comentarios.length}</span>}
             </p>
             {comentarios.length === 0 ? (
               <p className="text-xs text-gray-400">Nenhum comentário ainda.</p>
             ) : (
-              <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-52 overflow-y-auto pr-1">
                 {comentarios.map(c => (
                   <div key={c.id} className={cn('flex gap-2', c.autor_role === 'cliente' ? 'flex-row-reverse' : 'flex-row')}>
                     <div className={cn('w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0',
@@ -220,23 +286,25 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
                         {c.conteudo}
                       </div>
                       <p className="text-xs text-gray-400 px-1 mt-0.5">
-                        {formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}
+                        {c.autor_nome} · {formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <input className="input flex-1 text-sm" value={comentarioTexto}
-                onChange={e => setComentarioTexto(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarComentario()}
-                placeholder="Deixe um comentário ou pedido de ajuste..." />
-              <button onClick={enviarComentario} disabled={enviando || !comentarioTexto.trim()}
-                className="btn-primary p-2.5">
-                <Send size={15} />
-              </button>
-            </div>
+            {/* Campo de comentário — sempre visível, para admin e cliente */}
+            {!etiquetaPendente && (
+              <div className="flex gap-2">
+                <input className="input flex-1 text-sm" value={comentarioTexto}
+                  onChange={e => setComentarioTexto(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarComentario()}
+                  placeholder="Comentar ou dar um retorno..." />
+                <button onClick={enviarComentario} disabled={enviando || !comentarioTexto.trim()} className="btn-primary p-2.5">
+                  <Send size={15} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
