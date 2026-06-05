@@ -6,11 +6,16 @@ import { cn, formatDate } from '@/lib/utils'
 import { FileText, ExternalLink, BookOpen, CreditCard, FileCheck, ChevronDown, ChevronUp, FolderOpen } from 'lucide-react'
 
 const TIPO_CONFIG: Record<string, { label: string; icon: any; cor: string }> = {
-  briefing: { label: 'Briefing', icon: BookOpen, cor: 'bg-blue-100 text-blue-700' },
-  estrategia: { label: 'Estratégia', icon: FileText, cor: 'bg-purple-100 text-purple-700' },
-  referencia: { label: 'Referência', icon: FileText, cor: 'bg-orange-100 text-orange-700' },
-  nota: { label: 'Nota', icon: FileText, cor: 'bg-gray-100 text-gray-700' },
-  outro: { label: 'Outro', icon: FileText, cor: 'bg-pink-100 text-pink-700' },
+  briefing:    { label: 'Briefing',         icon: BookOpen,  cor: 'bg-blue-100 text-blue-700' },
+  estrategia:  { label: 'Estratégia',       icon: FileText,  cor: 'bg-purple-100 text-purple-700' },
+  curadoria:   { label: 'Curadoria',        icon: FileText,  cor: 'bg-pink-100 text-pink-700' },
+  calendario:  { label: 'Calendário',       icon: FileText,  cor: 'bg-indigo-100 text-indigo-700' },
+  contrato:    { label: 'Contrato',         icon: FileCheck, cor: 'bg-emerald-100 text-emerald-700' },
+  referencia:  { label: 'Referência',       icon: FileText,  cor: 'bg-orange-100 text-orange-700' },
+  nota:        { label: 'Nota',             icon: FileText,  cor: 'bg-gray-100 text-gray-700' },
+  planejamento:{ label: 'Planejamento',     icon: FileText,  cor: 'bg-teal-100 text-teal-700' },
+  relatorio:   { label: 'Relatório',        icon: FileText,  cor: 'bg-yellow-100 text-yellow-700' },
+  outro:       { label: 'Outro',            icon: FileText,  cor: 'bg-rose-100 text-rose-700' },
 }
 
 export default function ClienteDocsPage() {
@@ -81,34 +86,50 @@ export default function ClienteDocsPage() {
               {/* Info contrato */}
               {clienteInfo && (
                 <div className="card border-l-4 border-l-vinho">
-                  <div className="flex items-center gap-3 mb-3">
-                    <FileCheck size={20} className="text-vinho" />
-                    <h3 className="section-title text-base">Meu contrato</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs text-gray-400">Plano</p>
-                      <p className="font-medium text-gray-800">{clienteInfo.plano}</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <FileCheck size={20} className="text-vinho" />
+                      <h3 className="section-title text-base">Meu contrato</h3>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-400">Valor mensal</p>
-                      <p className="font-medium text-gray-800">
-                        R$ {clienteInfo.valor_mensal?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400">Vencimento todo mês</p>
-                      <p className="font-medium text-gray-800">Dia {clienteInfo.dia_vencimento}</p>
-                    </div>
-                    {clienteInfo.data_fim_contrato && (
-                      <div>
-                        <p className="text-xs text-gray-400">Contrato até</p>
-                        <p className="font-medium text-gray-800">
-                          {new Date(clienteInfo.data_fim_contrato).toLocaleDateString('pt-BR')}
-                        </p>
-                      </div>
+                    {clienteInfo.contrato_url && (
+                      <a href={clienteInfo.contrato_url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-vinho hover:underline flex items-center gap-1">
+                        ⬇ Baixar contrato
+                      </a>
                     )}
                   </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {clienteInfo.plano && <div>
+                      <p className="text-xs text-gray-400">Plano</p>
+                      <p className="font-medium text-gray-800">{clienteInfo.plano}</p>
+                    </div>}
+                    {clienteInfo.valor_mensal && <div>
+                      <p className="text-xs text-gray-400">Valor mensal</p>
+                      <p className="font-medium text-gray-800">R$ {clienteInfo.valor_mensal?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    </div>}
+                    {clienteInfo.dia_vencimento && <div>
+                      <p className="text-xs text-gray-400">Vencimento</p>
+                      <p className="font-medium text-gray-800">Todo dia {clienteInfo.dia_vencimento}</p>
+                    </div>}
+                    {clienteInfo.forma_pagamento && <div>
+                      <p className="text-xs text-gray-400">Forma de pagamento</p>
+                      <p className="font-medium text-gray-800 capitalize">{clienteInfo.forma_pagamento}</p>
+                    </div>}
+                    {clienteInfo.data_inicio_contrato && <div>
+                      <p className="text-xs text-gray-400">Início</p>
+                      <p className="font-medium text-gray-800">{new Date(clienteInfo.data_inicio_contrato).toLocaleDateString('pt-BR')}</p>
+                    </div>}
+                    {clienteInfo.data_fim_contrato && <div>
+                      <p className="text-xs text-gray-400">Término</p>
+                      <p className="font-medium text-gray-800">{new Date(clienteInfo.data_fim_contrato).toLocaleDateString('pt-BR')}</p>
+                    </div>}
+                  </div>
+                  {clienteInfo.servicos_contratados && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-400 mb-1">Serviços incluídos</p>
+                      <p className="text-sm text-gray-700">{clienteInfo.servicos_contratados}</p>
+                    </div>
+                  )}
                   {clienteInfo.objetivo && (
                     <div className="mt-3 pt-3 border-t border-gray-100">
                       <p className="text-xs text-gray-400">Objetivo</p>
@@ -164,11 +185,44 @@ export default function ClienteDocsPage() {
                           {aberto ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                         </button>
 
-                        {aberto && doc.conteudo && (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <div className="bg-creme rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
-                              {doc.conteudo}
-                            </div>
+                        {aberto && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                            {doc.conteudo && (
+                              <div className="bg-creme rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+                                {doc.conteudo}
+                              </div>
+                            )}
+                            {doc.link_arquivo && (
+                              /\.pdf$/i.test(doc.link_arquivo) ? (
+                                <div className="rounded-xl overflow-hidden border border-gray-200">
+                                  <div className="flex items-center justify-between px-3 py-2 bg-creme border-b border-gray-200">
+                                    <span className="text-xs font-medium text-gray-600">📄 PDF</span>
+                                    <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer"
+                                      className="text-xs text-vinho hover:underline flex items-center gap-1">
+                                      ⬇ Baixar
+                                    </a>
+                                  </div>
+                                  <iframe src={doc.link_arquivo} className="w-full h-64" title={doc.titulo} />
+                                </div>
+                              ) : /\.(png|jpg|jpeg|gif|webp)$/i.test(doc.link_arquivo) ? (
+                                <img src={doc.link_arquivo} alt={doc.titulo}
+                                  className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50" />
+                              ) : (
+                                <a href={doc.link_arquivo} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-2 text-sm text-vinho hover:underline">
+                                  ⬇ Baixar arquivo
+                                </a>
+                              )
+                            )}
+                            {doc.drive_url && (
+                              <a href={doc.drive_url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
+                                🔗 Abrir no Google Drive
+                              </a>
+                            )}
+                            {!doc.conteudo && !doc.link_arquivo && !doc.drive_url && (
+                              <p className="text-xs text-gray-400 text-center py-2">Nenhum arquivo ou conteúdo disponível ainda.</p>
+                            )}
                           </div>
                         )}
                       </div>
