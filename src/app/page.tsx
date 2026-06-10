@@ -13,6 +13,7 @@ export default async function HomePage() {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role === 'cliente') redirect('/cliente/calendario')
+  // Cliente vai pra home do portal, não pro calendário
+  if (profile?.role === 'cliente') redirect('/cliente')
   redirect('/dashboard')
 }
