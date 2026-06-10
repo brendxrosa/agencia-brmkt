@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { User, Mail, Phone, Instagram, Building, Eye, EyeOff, Save, KeyRound, FileCheck, Download } from 'lucide-react'
+import { User, Mail, Phone, Instagram, Building, Eye, EyeOff, Save, KeyRound, FileCheck, Download, Camera } from 'lucide-react'
 
 export default function ClientePerfilPage() {
   const supabase = createClient()
@@ -13,6 +13,7 @@ export default function ClientePerfilPage() {
   const [sucesso, setSucesso] = useState('')
   const [erro, setErro] = useState('')
   const [modalSenha, setModalSenha] = useState(false)
+  const [uploadandoFoto, setUploadandoFoto] = useState(false)
   const [senhaAtual, setSenhaAtual] = useState('')
   const [novaSenha, setNovaSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
@@ -59,6 +60,20 @@ export default function ClientePerfilPage() {
     }
   }
 
+  async function uploadFoto(file: File) {
+    if (!profile?.id) return
+    setUploadandoFoto(true)
+    const ext = file.name.split('.').pop()
+    const nomeSeguro = `avatar-${profile.id}-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('docs').upload(`avatars/${nomeSeguro}`, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('docs').getPublicUrl(`avatars/${nomeSeguro}`)
+      await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', profile.id)
+      setProfile((p: any) => ({ ...p, avatar_url: data.publicUrl }))
+    }
+    setUploadandoFoto(false)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="w-8 h-8 border-2 border-vinho/30 border-t-vinho rounded-full animate-spin" />
@@ -69,6 +84,29 @@ export default function ClientePerfilPage() {
     <div className="space-y-5 max-w-xl">
       <div>
         <h1 className="page-title">Meu Perfil</h1>
+
+      {/* Avatar */}
+      <div className="flex flex-col items-center gap-3 py-2">
+        <div className="relative">
+          <div className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center text-white text-2xl font-bold"
+            style={{ backgroundColor: cliente?.cor || '#6B0F2A' }}>
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+              : (profile?.nome?.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase() || 'VC')}
+          </div>
+          <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-white border-2 border-gray-100 rounded-xl flex items-center justify-center cursor-pointer hover:bg-creme transition-all shadow-sm">
+            {uploadandoFoto
+              ? <div className="w-3 h-3 border-2 border-vinho/30 border-t-vinho rounded-full animate-spin" />
+              : <Camera size={13} className="text-gray-500" />}
+            <input type="file" accept="image/*" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadFoto(f) }} />
+          </label>
+        </div>
+        <div className="text-center">
+          <p className="font-semibold text-gray-800">{profile?.nome}</p>
+          <p className="text-xs text-gray-400">{cliente?.nome}</p>
+        </div>
+      </div>
         <p className="text-gray-500 text-sm mt-1">Informações da sua conta</p>
       </div>
 
