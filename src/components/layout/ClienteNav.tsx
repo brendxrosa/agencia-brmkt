@@ -31,6 +31,9 @@ export default function ClienteNav({ profile }: { profile: any }) {
 
   const clienteInfo = profile?.clientes
   const cor = clienteInfo?.cor || '#6B0F2A'
+  const nomeUsuario = profile?.nome || clienteInfo?.nome || 'Cliente'
+  const iniciais = nomeUsuario.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
+  const fotoUrl = profile?.avatar_url || null
 
   useEffect(() => {
     async function contarPendentes() {
@@ -67,10 +70,12 @@ export default function ClienteNav({ profile }: { profile: any }) {
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
                 style={{ backgroundColor: cor }}>
-                {clienteInfo?.nome?.charAt(0) || 'C'}
+                {fotoUrl ? (
+                  <img src={fotoUrl} alt={nomeUsuario} className="w-full h-full object-cover rounded-lg" />
+                ) : iniciais}
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-semibold text-gray-800 leading-tight">{clienteInfo?.nome || 'Portal'}</p>
+                <p className="text-sm font-semibold text-gray-800 leading-tight">{nomeUsuario}</p>
                 <p className="text-xs text-gray-400">Agência BR MKT</p>
               </div>
             </div>
@@ -133,10 +138,12 @@ export default function ClienteNav({ profile }: { profile: any }) {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold"
               style={{ backgroundColor: cor }}>
-              {clienteInfo?.nome?.charAt(0) || 'C'}
+              {fotoUrl ? (
+                  <img src={fotoUrl} alt={nomeUsuario} className="w-full h-full object-cover rounded-xl" />
+                ) : iniciais}
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-800">{clienteInfo?.nome || 'Portal'}</p>
+              <p className="text-sm font-semibold text-gray-800">{nomeUsuario}</p>
               <p className="text-xs text-gray-400">Agência BR MKT</p>
             </div>
           </div>
