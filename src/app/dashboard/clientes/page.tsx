@@ -39,7 +39,7 @@ export default function ClientesPage() {
     nome: '', email: '', telefone: '', instagram: '', empresa: '',
     segmento: '', plano: 'Básico', valor_mensal: 0, dia_vencimento: 10,
     status: 'ativo', cor: CORES_CLIENTES[0], persona: '', tom_de_voz: '',
-    objetivo: '', observacoes: '', data_inicio_contrato: '', data_fim_contrato: '', drive_url: ''
+    objetivo: '', observacoes: '', data_inicio_contrato: '', data_fim_contrato: '', drive_url: '', forma_pagamento: '', servicos_contratados: ''
   })
 
   async function carregar() {
@@ -73,6 +73,8 @@ async function salvar(f: any) {
     observacoes: f.observacoes || null,
     data_inicio_contrato: f.data_inicio_contrato || null,
     data_fim_contrato: f.data_fim_contrato || null,
+    forma_pagamento: (f as any).forma_pagamento || null,
+    servicos_contratados: (f as any).servicos_contratados || null,
     drive_url: f.drive_url || null,
   }
 
@@ -125,6 +127,8 @@ async function salvar(f: any) {
       ...cliente,
       data_inicio_contrato: (cliente as any).data_inicio_contrato || '',
       data_fim_contrato: (cliente as any).data_fim_contrato || '',
+      forma_pagamento: (cliente as any).forma_pagamento || '',
+      servicos_contratados: (cliente as any).servicos_contratados || '',
       drive_url: (cliente as any).drive_url || '',
     })
     setModalAberto(true)
@@ -137,7 +141,7 @@ async function salvar(f: any) {
           <h1 className="page-title">Clientes</h1>
           <p className="text-gray-500 text-sm mt-1">{ativos} ativos · {formatCurrency(receitaMensal)}/mês</p>
         </div>
-        <button onClick={() => { setEditando(null); setForm({ nome: '', email: '', telefone: '', instagram: '', empresa: '', segmento: '', plano: 'Básico', valor_mensal: 0, dia_vencimento: 10, status: 'ativo', cor: CORES_CLIENTES[0], persona: '', tom_de_voz: '', objetivo: '', observacoes: '', data_inicio_contrato: '', data_fim_contrato: '', drive_url: '' }); setModalAberto(true) }}
+        <button onClick={() => { setEditando(null); setForm({ nome: '', email: '', telefone: '', instagram: '', empresa: '', segmento: '', plano: 'Básico', valor_mensal: 0, dia_vencimento: 10, status: 'ativo', cor: CORES_CLIENTES[0], persona: '', tom_de_voz: '', objetivo: '', observacoes: '', data_inicio_contrato: '', data_fim_contrato: '', drive_url: '', forma_pagamento: '', servicos_contratados: '' }); setModalAberto(true) }}
           className="btn-primary flex items-center gap-2">
           <Plus size={16} /> Novo cliente
         </button>
@@ -289,6 +293,44 @@ async function salvar(f: any) {
             <div className="grid grid-cols-2 gap-4">
               <div><label className="label">Início do contrato</label><input className="input" type="date" value={(form as any).data_inicio_contrato || ''} onChange={e => setForm(f => ({ ...f, data_inicio_contrato: e.target.value }))} /></div>
               <div><label className="label">Fim do contrato</label><input className="input" type="date" value={(form as any).data_fim_contrato || ''} onChange={e => setForm(f => ({ ...f, data_fim_contrato: e.target.value }))} /></div>
+            </div>
+
+            {/* Dados do contrato */}
+            <div className="pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">📄 Dados do contrato</p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Forma de pagamento</label>
+                    <select className="input" value={(form as any).forma_pagamento || ''} onChange={e => setForm(f => ({ ...f, forma_pagamento: e.target.value }))}>
+                      <option value="">Selecione</option>
+                      <option value="pix">PIX</option>
+                      <option value="boleto">Boleto</option>
+                      <option value="cartao">Cartão</option>
+                      <option value="transferencia">Transferência</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Dia de vencimento</label>
+                    <input className="input" type="number" min={1} max={31} value={form.dia_vencimento || ''} onChange={e => setForm(f => ({ ...f, dia_vencimento: Number(e.target.value) }))} />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Serviços contratados</label>
+                  <textarea className="input resize-none" rows={2}
+                    value={(form as any).servicos_contratados || ''}
+                    onChange={e => setForm(f => ({ ...f, servicos_contratados: e.target.value }))}
+                    placeholder="Ex: Gestão de Instagram, Tráfego pago, Criação de conteúdo..." />
+                  <p className="text-xs text-gray-400 mt-1">Separe por vírgula para aparecer em badges no portal</p>
+                </div>
+                <div>
+                  <label className="label">Observações do contrato</label>
+                  <textarea className="input resize-none" rows={2}
+                    value={form.observacoes || ''}
+                    onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))}
+                    placeholder="Cláusulas importantes, notas especiais..." />
+                </div>
+              </div>
             </div>
 
             {/* Upload de contrato com extração IA — só disponível ao editar cliente existente */}
