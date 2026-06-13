@@ -65,7 +65,7 @@ export default function ClienteDashboardPage() {
         const [{ data: p }, { data: m }, { data: e }, { data: t }, { data: b }, { data: r }] = await Promise.all([
           supabase.from('posts').select('id, titulo, tipo, status_interno')
             .eq('cliente_id', profile.cliente_id)
-            .eq('status_interno', 'aguardando_cliente')
+            .in('status_interno', ['aguardando_cliente','aprovacao_arte'])
             .order('created_at', { ascending: false }),
           supabase.from('mensagens').select('id, conteudo, created_at')
             .eq('cliente_id', profile.cliente_id)
