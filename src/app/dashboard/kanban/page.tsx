@@ -112,7 +112,7 @@ type FormPost = {
 const formVazio: FormPost = {
   cliente_id: '', titulo: '', tipo: 'reels', data_publicacao: '',
   tema: '', copy: '', legenda: '', direcionamento: '',
-  link_midia: '', tipo_midia: 'link', status_interno: 'copy'
+  link_midia: '', tipo_midia: 'link', link_externo: '', midias_urls: [], status_interno: 'copy'
 }
 
 type PostImportado = {
@@ -188,31 +188,53 @@ function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, 
         <label className="label">Legenda</label>
         <textarea className="input resize-none" rows={2} value={f.legenda} onChange={e => set('legenda', e.target.value)} placeholder="Legenda para o Instagram..." />
       </div>
+      {/* Link externo separado */}
       <div>
-        <label className="label flex items-center gap-1.5"><Paperclip size={13} /> Mídia / Arquivo</label>
-        <div className="flex gap-2">
-          <select className="input w-36 flex-shrink-0" value={f.tipo_midia} onChange={e => set('tipo_midia', e.target.value)}>
-            {TIPO_MIDIA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-            <option value="imagem">Imagem</option>
-            <option value="video">Vídeo</option>
-          </select>
-          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://..." />
-          {/* Botão de upload — coexiste com o link */}
-          {onUploadMidia && (
-            <label className="btn-ghost p-2.5 cursor-pointer flex-shrink-0" title="Fazer upload de arquivo">
-              {uploadandoForm
-                ? <div className="w-4 h-4 border-2 border-vinho/30 border-t-vinho rounded-full animate-spin" />
-                : <Upload size={16} className="text-gray-400" />}
-              <input type="file" accept="image/*,video/*" className="hidden"
-                onChange={e => { const fi = e.target.files?.[0]; if (fi) onUploadMidia(fi, set) }} />
-            </label>
-          )}
-        </div>
-        {f.link_midia && (f.tipo_midia === 'imagem') && (
-          <img src={f.link_midia} alt="Preview" className="mt-2 w-full h-32 object-cover rounded-xl border border-gray-100" />
+        <label className="label flex items-center gap-1.5"><Paperclip size={13} /> Link externo</label>
+        <input className="input" value={(f as any).link_externo || ''} onChange={e => set('link_externo', e.target.value)}
+          placeholder="https://drive.google.com/... ou YouTube, etc" />
+        <p className="text-xs text-gray-400 mt-1">Drive, YouTube, Canva, WeTransfer ou qualquer link</p>
+      </div>
+
+      {/* Upload de arquivos — múltiplos */}
+      <div>
+        <label className="label flex items-center gap-1.5"><Upload size={13} /> Arquivos (imagens, vídeos, docs)</label>
+        {/* Galeria de uploads existentes */}
+        {((f as any).midias_urls || []).length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            {((f as any).midias_urls as string[]).map((url: string, i: number) => (
+              <div key={i} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                {/\.(mp4|mov|webm)$/i.test(url) ? (
+                  <video src={url} className="w-full h-full object-cover" />
+                ) : /\.(pdf|doc|docx)$/i.test(url) ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <FileText size={24} className="text-gray-400" />
+                  </div>
+                ) : (
+                  <img src={url} alt={`Mídia ${i+1}`} className="w-full h-full object-cover" />
+                )}
+                <button
+                  onClick={() => set('midias_urls', ((f as any).midias_urls as string[]).filter((_: string, idx: number) => idx !== i))}
+                  className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                  ×
+                </button>
+                <span className="absolute bottom-1 left-1 text-xs bg-black/50 text-white rounded px-1">{i+1}</span>
+              </div>
+            ))}
+          </div>
         )}
-        {f.link_midia && (f.tipo_midia === 'video') && (
-          <video src={f.link_midia} className="mt-2 w-full h-32 object-cover rounded-xl border border-gray-100" controls />
+        {/* Botão de upload */}
+        {onUploadMidia && (
+          <label className="flex items-center gap-2 p-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-vinho/40 hover:bg-rosa-pale/10 transition-all">
+            {uploadandoForm
+              ? <div className="w-4 h-4 border-2 border-vinho/30 border-t-vinho rounded-full animate-spin" />
+              : <Upload size={16} className="text-gray-400" />}
+            <span className="text-sm text-gray-400">
+              {uploadandoForm ? 'Enviando...' : `Adicionar arquivo${((f as any).midias_urls || []).length > 0 ? ' (pode adicionar mais)' : ''}`}
+            </span>
+            <input type="file" accept="image/*,video/*,.pdf,.doc,.docx" className="hidden"
+              onChange={e => { const fi = e.target.files?.[0]; if (fi) onUploadMidia(fi, set, (f as any).midias_urls || []) }} />
+          </label>
         )}
       </div>
     </div>
@@ -270,6 +292,8 @@ export default function KanbanPage() {
       direcionamento: post.direcionamento || '',
       link_midia: post.link_midia || '',
       tipo_midia: post.tipo_midia || 'link',
+      link_externo: post.link_externo || '',
+      midias_urls: post.midias_urls || [],
       status_interno: post.status_interno || 'briefing',
     })
     setModoEditar(false)
@@ -286,7 +310,7 @@ export default function KanbanPage() {
   async function salvarEdicao() {
     if (!postDetalhes?.id) return
     setSalvando(true)
-    await supabase.from('posts').update(formEditar).eq('id', postDetalhes.id)
+    await supabase.from('posts').update({ ...formEditar, midias_urls: formEditar.midias_urls || [], link_externo: formEditar.link_externo || null }).eq('id', postDetalhes.id)
     setSalvando(false)
     setModoEditar(false)
     const atualizado = { ...postDetalhes, ...formEditar, clientes: postDetalhes.clientes }
@@ -313,15 +337,20 @@ export default function KanbanPage() {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...update } : p))
   }
 
-  async function uploadMidiaForm(file: File, set: (k: any, v: any) => void) {
+  async function uploadMidiaForm(file: File, set: (k: any, v: any) => void, currentUrls: string[] = []) {
     setUploadandoForm(true)
     const ext = file.name.split('.').pop()
     const nome = `midia-form-${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('docs').upload(`midias/${nome}`, file, { upsert: true })
     if (!error) {
       const { data } = supabase.storage.from('docs').getPublicUrl(`midias/${nome}`)
-      set('link_midia', data.publicUrl)
-      set('tipo_midia', file.type.startsWith('video') ? 'video' : 'imagem')
+      // Adiciona ao array de mídias
+      set('midias_urls', [...currentUrls, data.publicUrl])
+      // Mantém link_midia com a primeira mídia por compatibilidade
+      if (currentUrls.length === 0) {
+        set('link_midia', data.publicUrl)
+        set('tipo_midia', file.type.startsWith('video') ? 'video' : 'imagem')
+      }
     }
     setUploadandoForm(false)
   }
@@ -334,9 +363,15 @@ export default function KanbanPage() {
     if (!error) {
       const { data } = supabase.storage.from('docs').getPublicUrl(`midias/${nome}`)
       const tipoMidia = file.type.startsWith('video') ? 'video' : 'imagem'
-      await supabase.from('posts').update({ link_midia: data.publicUrl, tipo_midia: tipoMidia }).eq('id', postId)
-      setPosts(prev => prev.map(p => p.id === postId ? { ...p, link_midia: data.publicUrl, tipo_midia: tipoMidia } : p))
-      if (postDetalhes?.id === postId) setPostDetalhes((p: any) => ({ ...p, link_midia: data.publicUrl, tipo_midia: tipoMidia }))
+      const post = posts.find(p => p.id === postId)
+      const novasMidias = [...(post?.midias_urls || []), data.publicUrl]
+      await supabase.from('posts').update({ 
+        link_midia: post?.link_midia || data.publicUrl, 
+        tipo_midia: tipoMidia,
+        midias_urls: novasMidias
+      }).eq('id', postId)
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, link_midia: p.link_midia || data.publicUrl, tipo_midia: tipoMidia, midias_urls: novasMidias } : p))
+      if (postDetalhes?.id === postId) setPostDetalhes((p: any) => ({ ...p, midias_urls: novasMidias }))
     }
     setUploadandoMidia(null)
   }
@@ -566,13 +601,18 @@ export default function KanbanPage() {
                         </div>
                       </div>
                     )}
-                    {post.link_midia && !['imagem','video'].includes(post.tipo_midia || '') && (
+                    {post.link_externo && (
                       <div className="w-full px-3 pt-2">
-                        <a href={post.link_midia} target="_blank" rel="noopener noreferrer"
+                        <a href={post.link_externo} target="_blank" rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
                           className="flex items-center gap-1.5 text-xs text-vinho hover:underline truncate">
-                          <Paperclip size={11} /> {post.link_midia.replace(/^https?:\/\//, '').slice(0,35)}...
+                          <Paperclip size={11} /> {post.link_externo.replace(/^https?:\/\//, '').slice(0,35)}
                         </a>
+                      </div>
+                    )}
+                    {(post.midias_urls || []).length > 1 && (
+                      <div className="absolute top-2 right-2 bg-black/60 text-white text-xs rounded-lg px-1.5 py-0.5">
+                        {post.midias_urls.length} arquivos
                       </div>
                     )}
 
