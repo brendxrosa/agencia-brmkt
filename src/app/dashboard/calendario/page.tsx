@@ -40,6 +40,15 @@ export default function CalendarioPage() {
   const [loading, setLoading] = useState(true)
   const [itemDetalhes, setItemDetalhes] = useState<any>(null)
   const [tipoDetalhes, setTipoDetalhes] = useState<'post' | 'evento' | null>(null)
+  const [alterandoStatus, setAlterandoStatus] = useState<string | null>(null)
+
+  async function alterarStatus(postId: string, novoStatus: string) {
+    setAlterandoStatus(postId)
+    await supabase.from('posts').update({ status_interno: novoStatus }).eq('id', postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status_interno: novoStatus } : p))
+    if (itemDetalhes?.id === postId) setItemDetalhes((p: any) => ({ ...p, status_interno: novoStatus }))
+    setAlterandoStatus(null)
+  }
 
   async function carregar() {
     const inicio = format(startOfMonth(mes), 'yyyy-MM-dd')
@@ -156,12 +165,23 @@ export default function CalendarioPage() {
                   )}>
                   <span className="text-xs font-medium">{format(dia, 'd')}</span>
                   {ps.length > 0 && (
-                    <div className="flex gap-0.5 flex-wrap justify-center max-w-full">
-                      {ps.slice(0, 4).map(p => (
-                        <span key={p.id} className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.8)' : p.clientes?.cor || '#C2185B' }} />
+                    <div className="w-full space-y-0.5 px-0.5">
+                      {ps.slice(0, 2).map(p => (
+                        <div key={p.id} className="w-full flex items-center gap-0.5 rounded overflow-hidden"
+                          style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.2)' : (p.clientes?.cor || '#C2185B') + '22' }}>
+                          <div className="w-1 h-3.5 flex-shrink-0 rounded-sm"
+                            style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.8)' : p.clientes?.cor || '#C2185B' }} />
+                          <span className={cn('text-xs truncate leading-none py-0.5',
+                            selecionado ? 'text-white/90' : 'text-gray-700')}
+                            style={{ fontSize: '9px' }}>
+                            {p.tipo?.slice(0,1).toUpperCase()} {p.titulo?.split(' ').slice(0,2).join(' ')}
+                          </span>
+                        </div>
                       ))}
-                      {ps.length > 4 && <span className={cn('text-xs', selecionado ? 'text-white/70' : 'text-gray-400')}>+{ps.length - 4}</span>}
+                      {ps.length > 2 && (
+                        <span className={cn('text-xs', selecionado ? 'text-white/60' : 'text-gray-400')}
+                          style={{ fontSize: '9px' }}>+{ps.length - 2} mais</span>
+                      )}
                     </div>
                   )}
                   {es.length > 0 && (
@@ -233,20 +253,35 @@ export default function CalendarioPage() {
                 ))}
 
                 {itensDia.posts.map(post => (
-                  <button key={post.id} onClick={() => abrirPost(post)}
-                    className="w-full p-2.5 rounded-xl border border-gray-100 text-left hover:bg-creme transition-all">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: post.clientes?.cor }} />
-                      <span className="text-xs text-gray-400">{post.clientes?.nome}</span>
+                  <div key={post.id} className="rounded-xl border border-gray-100 overflow-hidden hover:shadow-card transition-all">
+                    {/* Linha colorida estilo Google Calendar */}
+                    <div className="flex items-stretch">
+                      <div className="w-1 flex-shrink-0 rounded-l-xl" style={{ backgroundColor: post.clientes?.cor || '#C2185B' }} />
+                      <button onClick={() => abrirPost(post)} className="flex-1 p-2.5 text-left">
+                        <p className="text-sm font-medium text-gray-800 truncate">{post.titulo}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {post.clientes?.nome} · <span className="capitalize">{post.tipo}</span>
+                          {post.hora_publicacao ? ` · ${post.hora_publicacao}` : ''}
+                        </p>
+                      </button>
                     </div>
-                    <p className="text-sm font-medium text-gray-800 truncate">{post.titulo}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-gray-400 capitalize">{post.tipo}</span>
-                      <span className={cn('badge text-xs', STATUS_POST_CORES[post.status_interno])}>
-                        {STATUS_POST_LABELS[post.status_interno]}
-                      </span>
+                    {/* Status alterável inline */}
+                    <div className="px-3 pb-2 pt-0">
+                      <select
+                        value={post.status_interno}
+                        disabled={alterandoStatus === post.id}
+                        onChange={e => alterarStatus(post.id, e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                        className={cn(
+                          'text-xs rounded-lg px-2 py-1 border-0 font-medium cursor-pointer w-full',
+                          STATUS_POST_CORES[post.status_interno]
+                        )}>
+                        {['copy','aguardando_cliente','design','captacao','edicao','aprovacao_arte','aprovado','publicado'].map(s => (
+                          <option key={s} value={s}>{STATUS_POST_LABELS[s]}</option>
+                        ))}
+                      </select>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -312,9 +347,15 @@ export default function CalendarioPage() {
 
             <h2 className="font-display text-xl font-semibold text-gray-800 mb-1">{itemDetalhes.titulo}</h2>
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              <span className={cn('badge text-xs', STATUS_POST_CORES[itemDetalhes.status_interno])}>
-                {STATUS_POST_LABELS[itemDetalhes.status_interno]}
-              </span>
+              <select
+                value={itemDetalhes.status_interno}
+                disabled={alterandoStatus === itemDetalhes.id}
+                onChange={e => alterarStatus(itemDetalhes.id, e.target.value)}
+                className={cn('text-xs rounded-lg px-2 py-1.5 border-0 font-medium cursor-pointer', STATUS_POST_CORES[itemDetalhes.status_interno])}>
+                {['copy','aguardando_cliente','design','captacao','edicao','aprovacao_arte','aprovado','publicado'].map(s => (
+                  <option key={s} value={s}>{STATUS_POST_LABELS[s]}</option>
+                ))}
+              </select>
               <span className="badge bg-creme text-gray-600 text-xs capitalize">{itemDetalhes.tipo}</span>
               {itemDetalhes.data_publicacao && (
                 <span className="text-xs text-gray-400">📅 {formatDate(itemDetalhes.data_publicacao)}</span>
