@@ -74,6 +74,7 @@ export default function BriefingsPage() {
     setNome(b.nome)
     setDescricao(b.descricao || '')
     setPerguntasSelecionadas(b.perguntas.map((p: any) => p.id))
+    setClienteVinculo(b.cliente_id || '')
     setPacoteBase('')
     setBriefingAtual(b)
     setModalEditar(true)
