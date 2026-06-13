@@ -82,7 +82,7 @@ export default function ClienteCalendarioPage() {
               const es = eventosNoDia(dia)
               const selecionado = diaSelecionado && isSameDay(dia, diaSelecionado)
               const hoje = isToday(dia)
-              const temPendente = ps.some(p => p.status_interno === 'aguardando_cliente')
+              const temPendente = ps.some(p => ['aguardando_cliente','aprovacao_arte'].includes(p.status_interno))
               return (
                 <button key={dia.toISOString()} onClick={() => setDiaSelecionado(dia)}
                   className={cn(
@@ -94,7 +94,7 @@ export default function ClienteCalendarioPage() {
                   <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
                     {ps.slice(0, 3).map(p => (
                       <span key={p.id} className={cn('w-1.5 h-1.5 rounded-full',
-                        p.status_interno === 'aguardando_cliente' ? (selecionado ? 'bg-white' : 'bg-rosa') :
+                        ['aguardando_cliente','aprovacao_arte'].includes(p.status_interno) ? (selecionado ? 'bg-white' : 'bg-rosa') :
                         p.status_interno === 'concluido' ? 'bg-gray-300' :
                         (selecionado ? 'bg-white/70' : 'bg-rosa/50')
                       )} />
@@ -148,7 +148,7 @@ export default function ClienteCalendarioPage() {
                     'w-full text-left flex gap-3 p-2.5 rounded-xl border transition-all hover:shadow-card-hover',
                     post.status_interno === 'concluido'
                       ? 'bg-gray-50 border-gray-100 opacity-60'
-                      : post.status_interno === 'aguardando_cliente'
+                      : ['aguardando_cliente','aprovacao_arte'].includes(post.status_interno)
                       ? 'bg-rosa-pale/40 border-rosa/20 hover:bg-rosa-pale/60'
                       : 'bg-rosa-pale/20 border-rosa/10 hover:bg-rosa-pale/40'
                   )}>
@@ -166,7 +166,7 @@ export default function ClienteCalendarioPage() {
                       </span>
                     </div>
                   </div>
-                  {post.status_interno === 'aguardando_cliente' && (
+                  {['aguardando_cliente','aprovacao_arte'].includes(post.status_interno) && (
                     <span className="text-xs text-rosa font-medium self-center flex-shrink-0">Ver →</span>
                   )}
                 </button>
