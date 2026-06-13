@@ -122,7 +122,7 @@ type PostImportado = {
 }
 
 // ─── CamposPost movido para fora do componente pai (evita perda de foco) ───
-function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, COLUNAS, TIPO_MIDIA }: {
+function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, COLUNAS, TIPO_MIDIA, onUploadMidia, uploadandoForm }: {
   f: FormPost
   set: (k: keyof FormPost, v: any) => void
   showStatus?: boolean
@@ -130,6 +130,8 @@ function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, 
   STATUS_POST_LABELS: Record<string, string>
   COLUNAS: readonly string[]
   TIPO_MIDIA: { key: string; label: string }[]
+  onUploadMidia?: (file: File, set: (k: any, v: any) => void) => void
+  uploadandoForm?: boolean
 }) {
   return (
     <div className="space-y-4">
@@ -189,12 +191,22 @@ function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, 
       <div>
         <label className="label flex items-center gap-1.5"><Paperclip size={13} /> Mídia / Arquivo</label>
         <div className="flex gap-2">
-          <select className="input w-40 flex-shrink-0" value={f.tipo_midia} onChange={e => set('tipo_midia', e.target.value)}>
+          <select className="input w-36 flex-shrink-0" value={f.tipo_midia} onChange={e => set('tipo_midia', e.target.value)}>
             {TIPO_MIDIA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-            <option value="imagem">Imagem (upload)</option>
-            <option value="video">Vídeo (upload)</option>
+            <option value="imagem">Imagem</option>
+            <option value="video">Vídeo</option>
           </select>
-          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://... ou faça upload após salvar" />
+          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://..." />
+          {/* Botão de upload — coexiste com o link */}
+          {onUploadMidia && (
+            <label className="btn-ghost p-2.5 cursor-pointer flex-shrink-0" title="Fazer upload de arquivo">
+              {uploadandoForm
+                ? <div className="w-4 h-4 border-2 border-vinho/30 border-t-vinho rounded-full animate-spin" />
+                : <Upload size={16} className="text-gray-400" />}
+              <input type="file" accept="image/*,video/*" className="hidden"
+                onChange={e => { const fi = e.target.files?.[0]; if (fi) onUploadMidia(fi, set) }} />
+            </label>
+          )}
         </div>
         {f.link_midia && (f.tipo_midia === 'imagem') && (
           <img src={f.link_midia} alt="Preview" className="mt-2 w-full h-32 object-cover rounded-xl border border-gray-100" />
@@ -223,6 +235,7 @@ export default function KanbanPage() {
   const [formEditar, setFormEditar] = useState<FormPost>(formVazio)
   const [salvando, setSalvando] = useState(false)
   const [uploadandoMidia, setUploadandoMidia] = useState<string | null>(null)
+  const [uploadandoForm, setUploadandoForm] = useState(false)
 
   // Estado do modal de importação
   const [importCliente, setImportCliente] = useState('')
@@ -298,6 +311,19 @@ export default function KanbanPage() {
     }
     await supabase.from('posts').update(update).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...update } : p))
+  }
+
+  async function uploadMidiaForm(file: File, set: (k: any, v: any) => void) {
+    setUploadandoForm(true)
+    const ext = file.name.split('.').pop()
+    const nome = `midia-form-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('docs').upload(`midias/${nome}`, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('docs').getPublicUrl(`midias/${nome}`)
+      set('link_midia', data.publicUrl)
+      set('tipo_midia', file.type.startsWith('video') ? 'video' : 'imagem')
+    }
+    setUploadandoForm(false)
   }
 
   async function uploadMidia(postId: string, file: File) {
@@ -746,7 +772,7 @@ export default function KanbanPage() {
             </div>
 
             {modoEditar ? (
-              <CamposPost f={formEditar} set={setFE} showStatus={true} clientes={clientes} STATUS_POST_LABELS={STATUS_POST_LABELS} COLUNAS={COLUNAS} TIPO_MIDIA={TIPO_MIDIA} />
+              <CamposPost f={formEditar} set={setFE} showStatus={true} clientes={clientes} STATUS_POST_LABELS={STATUS_POST_LABELS} COLUNAS={COLUNAS} TIPO_MIDIA={TIPO_MIDIA} onUploadMidia={uploadMidiaForm} uploadandoForm={uploadandoForm} />
             ) : (
               <div className="space-y-4">
                 <div>
@@ -819,7 +845,7 @@ export default function KanbanPage() {
             <h2 className="font-display text-xl font-semibold text-vinho">Novo post</h2>
             <button onClick={() => setModalNovo(false)} className="btn-ghost p-2"><X size={18} /></button>
           </div>
-          <CamposPost f={form} set={setF} clientes={clientes} STATUS_POST_LABELS={STATUS_POST_LABELS} COLUNAS={COLUNAS} TIPO_MIDIA={TIPO_MIDIA} />
+          <CamposPost f={form} set={setF} clientes={clientes} STATUS_POST_LABELS={STATUS_POST_LABELS} COLUNAS={COLUNAS} TIPO_MIDIA={TIPO_MIDIA} onUploadMidia={uploadMidiaForm} uploadandoForm={uploadandoForm} />
           <div className="flex gap-3 pt-4">
             <button onClick={() => setModalNovo(false)} className="btn-secondary flex-1">Cancelar</button>
             <button onClick={criarPost} className="btn-primary flex-1 justify-center">Criar post</button>
