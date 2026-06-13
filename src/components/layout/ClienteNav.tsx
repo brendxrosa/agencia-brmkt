@@ -40,7 +40,7 @@ export default function ClienteNav({ profile }: { profile: any }) {
       if (!clienteInfo?.id) return
       const [{ count: posts }, { count: docs }] = await Promise.all([
         supabase.from('posts').select('*', { count: 'exact', head: true })
-          .eq('cliente_id', clienteInfo.id).eq('status_interno', 'aguardando_cliente'),
+          .eq('cliente_id', clienteInfo.id).in('status_interno', ['aguardando_cliente','aprovacao_arte']),
         supabase.from('docs').select('*', { count: 'exact', head: true })
           .eq('cliente_id', clienteInfo.id).eq('status_aprovacao', 'aguardando')
       ])
