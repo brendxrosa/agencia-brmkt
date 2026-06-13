@@ -59,7 +59,7 @@ export default function ClienteAprovacoesPage() {
     setUserName(profile.nome || 'Cliente')
     const cid = profile.cliente_id
     const [{ data: p }, { data: d }, { data: hd }, { data: hp }] = await Promise.all([
-      supabase.from('posts').select('*').eq('cliente_id', cid).eq('status_interno', 'aguardando_cliente').order('created_at', { ascending: false }),
+      supabase.from('posts').select('*').eq('cliente_id', cid).in('status_interno', ['aguardando_cliente','aprovacao_arte']).order('created_at', { ascending: false }),
       supabase.from('docs').select('*').eq('cliente_id', cid).eq('status_aprovacao', 'aguardando').order('updated_at', { ascending: false }),
       supabase.from('docs').select('*').eq('cliente_id', cid).in('status_aprovacao', ['aprovado','reprovado']).order('data_aprovacao', { ascending: false }).limit(50),
       supabase.from('posts').select('*').eq('cliente_id', cid).in('status_cliente', ['aprovado','reprovado']).order('data_aprovacao', { ascending: false }).limit(50),
@@ -329,8 +329,14 @@ export default function ClienteAprovacoesPage() {
                     <p className="font-semibold text-gray-800">{post.titulo}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="badge bg-gray-100 text-gray-600 text-xs capitalize">{post.tipo}</span>
-                      <span className="badge bg-orange-100 text-orange-700 text-xs flex items-center gap-1">
-                        <Clock size={10} /> Aguardando aprovação
+                      <span className={cn(
+                        'badge text-xs flex items-center gap-1',
+                        post.status_interno === 'aprovacao_arte'
+                          ? 'bg-violet-100 text-violet-700'
+                          : 'bg-orange-100 text-orange-700'
+                      )}>
+                        <Clock size={10} />
+                        {post.status_interno === 'aprovacao_arte' ? 'Aprovação final da arte' : 'Aguardando aprovação'}
                       </span>
                     </div>
                     {post.legenda && <p className="text-xs text-gray-400 mt-2 line-clamp-2">{post.legenda}</p>}
