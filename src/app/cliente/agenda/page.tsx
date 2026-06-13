@@ -159,6 +159,38 @@ export default function ClienteAgendaPage() {
     carregar()
   }
 
+  // Gera timeline de horários ocupados/livres para o dia selecionado
+  function gerarTimeline(dia: Date) {
+    const eventosNoDia = eventosOcupados
+      .filter(e => isSameDay(parseISO(e.data_inicio), dia) && !e.dia_todo)
+      .map(e => ({
+        inicio: format(parseISO(e.data_inicio), 'HH:mm'),
+        fim: e.data_fim ? format(parseISO(e.data_fim), 'HH:mm') : format(parseISO(e.data_inicio), 'HH:mm'),
+        inicioh: parseISO(e.data_inicio).getHours() + parseISO(e.data_inicio).getMinutes() / 60,
+        fimh: e.data_fim ? parseISO(e.data_fim).getHours() + parseISO(e.data_fim).getMinutes() / 60 : parseISO(e.data_inicio).getHours() + 1,
+      }))
+      .sort((a, b) => a.inicioh - b.inicioh)
+
+    if (eventosNoDia.length === 0) return []
+
+    const INICIO_DIA = 8
+    const FIM_DIA = 18
+    const blocos: { inicio: string; fim: string; ocupado: boolean }[] = []
+    let cursor = INICIO_DIA
+
+    eventosNoDia.forEach(e => {
+      if (e.inicioh > cursor) {
+        blocos.push({ inicio: `${String(cursor).padStart(2,'0')}:00`, fim: e.inicio, ocupado: false })
+      }
+      blocos.push({ inicio: e.inicio, fim: e.fim, ocupado: true })
+      cursor = e.fimh
+    })
+    if (cursor < FIM_DIA) {
+      blocos.push({ inicio: `${String(Math.floor(cursor)).padStart(2,'0')}:00`, fim: '18:00', ocupado: false })
+    }
+    return blocos
+  }
+
   const diasDoMes = eachDayOfInterval({ start: startOfMonth(mes), end: endOfMonth(mes) })
   const primeiroDia = startOfMonth(mes).getDay()
   const diasVazios = Array(primeiroDia).fill(null)
@@ -265,18 +297,59 @@ export default function ClienteAgendaPage() {
                     className="btn-secondary mt-3 w-full text-xs py-2 justify-center">Solicitar (emergência)</button>
                 </div>
               ) : statusDiaSelecionado === 'livre' ? (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
-                  <p className="text-sm font-medium text-emerald-600">🟢 Dia disponível</p>
-                  <p className="text-xs text-emerald-500 mt-1">Horário comercial: 8h às 18h</p>
-                  <button onClick={() => { setForm(f => ({ ...f, data: format(diaSelecionado, 'yyyy-MM-dd') })); setModalAberto(true) }}
-                    className="btn-primary mt-3 w-full text-xs py-2 justify-center">+ Solicitar evento</button>
+                <div className="space-y-2">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                    <p className="text-sm font-medium text-emerald-600">🟢 Dia disponível</p>
+                    <p className="text-xs text-emerald-500 mt-1">Horário comercial: 8h às 18h</p>
+                    <button onClick={() => { setForm(f => ({ ...f, data: format(diaSelecionado, 'yyyy-MM-dd') })); setModalAberto(true) }}
+                      className="btn-primary mt-3 w-full text-xs py-2 justify-center">+ Solicitar evento</button>
+                  </div>
+                  {gerarTimeline(diaSelecionado).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Horários do dia</p>
+                      {gerarTimeline(diaSelecionado).map((bloco, i) => (
+                        <div key={i} className={cn(
+                          'flex items-center gap-3 px-3 py-2 rounded-xl text-sm',
+                          bloco.ocupado ? 'bg-red-50 border border-red-100' : 'bg-emerald-50 border border-emerald-100'
+                        )}>
+                          <div className={cn('w-2 h-2 rounded-full flex-shrink-0', bloco.ocupado ? 'bg-red-400' : 'bg-emerald-400')} />
+                          <span className={cn('font-medium text-xs', bloco.ocupado ? 'text-red-700' : 'text-emerald-700')}>
+                            {bloco.inicio} – {bloco.fim}
+                          </span>
+                          <span className={cn('text-xs ml-auto', bloco.ocupado ? 'text-red-500' : 'text-emerald-600')}>
+                            {bloco.ocupado ? 'Ocupado' : 'Disponível'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : statusDiaSelecionado === 'parcial' ? (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
-                  <p className="text-sm font-medium text-orange-600">🟡 Horários limitados</p>
-                  <p className="text-xs text-orange-500 mt-1">Há compromissos neste dia, mas ainda tem horários disponíveis.</p>
-                  <button onClick={() => { setForm(f => ({ ...f, data: format(diaSelecionado, 'yyyy-MM-dd') })); setModalAberto(true) }}
-                    className="btn-primary mt-3 w-full text-xs py-2 justify-center">+ Solicitar evento</button>
+                <div className="space-y-2">
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+                    <p className="text-sm font-medium text-orange-600">🟡 Horários limitados</p>
+                    <p className="text-xs text-orange-500 mt-1">Veja os horários disponíveis abaixo.</p>
+                    <button onClick={() => { setForm(f => ({ ...f, data: format(diaSelecionado, 'yyyy-MM-dd') })); setModalAberto(true) }}
+                      className="btn-primary mt-3 w-full text-xs py-2 justify-center">+ Solicitar evento</button>
+                  </div>
+                  {/* Timeline de horários */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Horários do dia</p>
+                    {gerarTimeline(diaSelecionado).map((bloco, i) => (
+                      <div key={i} className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-xl text-sm',
+                        bloco.ocupado ? 'bg-red-50 border border-red-100' : 'bg-emerald-50 border border-emerald-100'
+                      )}>
+                        <div className={cn('w-2 h-2 rounded-full flex-shrink-0', bloco.ocupado ? 'bg-red-400' : 'bg-emerald-400')} />
+                        <span className={cn('font-medium text-xs', bloco.ocupado ? 'text-red-700' : 'text-emerald-700')}>
+                          {bloco.inicio} – {bloco.fim}
+                        </span>
+                        <span className={cn('text-xs ml-auto', bloco.ocupado ? 'text-red-500' : 'text-emerald-600')}>
+                          {bloco.ocupado ? 'Ocupado' : 'Disponível'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
