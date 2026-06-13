@@ -6,6 +6,24 @@ import { cn } from '@/lib/utils'
 import { Plus, X, ChevronLeft, ChevronRight, Clock, Users, Camera, Package, DollarSign, Calendar, MapPin, Link, Edit2, Save, CheckCircle, XCircle, RefreshCw, ExternalLink } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+
+// Converte data/hora local (Brasil UTC-3) para ISO string com timezone correto
+function toLocalISO(data: string, hora: string) {
+  return `${data}T${hora}:00-03:00`
+}
+
+// Formata hora de um ISO string considerando UTC-3
+function formatHoraBR(isoStr: string) {
+  const d = new Date(isoStr)
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bahia' })
+}
+
+// Formata data de um ISO string considerando UTC-3
+function formatDataBR(isoStr: string) {
+  const d = new Date(isoStr)
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Bahia' })
+}
+
 import { useSearchParams } from 'next/navigation'
 
 const TIPO_CONFIG = {
@@ -150,9 +168,9 @@ function AgendaContent() {
       tipo: evento.tipo || 'reuniao',
       cliente_id: evento.cliente_id || '',
       data_inicio: evento.data_inicio ? format(parseISO(evento.data_inicio), 'yyyy-MM-dd') : '',
-      hora_inicio: evento.data_inicio ? format(parseISO(evento.data_inicio), 'HH:mm') : '09:00',
+      hora_inicio: evento.data_inicio ? formatHoraBR(evento.data_inicio) : '09:00',
       data_fim: evento.data_fim ? format(parseISO(evento.data_fim), 'yyyy-MM-dd') : '',
-      hora_fim: evento.data_fim ? format(parseISO(evento.data_fim), 'HH:mm') : '10:00',
+      hora_fim: evento.data_fim ? formatHoraBR(evento.data_fim) : '10:00',
       dia_todo: evento.dia_todo || false,
       visivel_cliente: evento.visivel_cliente || false,
       local: evento.local || '',
@@ -165,9 +183,9 @@ function AgendaContent() {
   async function salvar() {
     if (!form.titulo || !form.data_inicio) return alert('Título e data são obrigatórios!')
     setSalvando(true)
-    const data_inicio = form.dia_todo ? `${form.data_inicio}T00:00:00` : `${form.data_inicio}T${form.hora_inicio}:00`
+    const data_inicio = form.dia_todo ? `${form.data_inicio}T00:00:00-03:00` : toLocalISO(form.data_inicio, form.hora_inicio)
     const data_fim = form.data_fim
-      ? (form.dia_todo ? `${form.data_fim}T23:59:59` : `${form.data_fim}T${form.hora_fim}:00`)
+      ? (form.dia_todo ? `${form.data_fim}T23:59:59-03:00` : toLocalISO(form.data_fim, form.hora_fim))
       : data_inicio
 
     const { data: novoEvento } = await supabase.from('eventos').insert({
@@ -196,10 +214,10 @@ function AgendaContent() {
     if (!eventoDetalhes?.id) return
     setSalvando(true)
     const data_inicio = formEditar.dia_todo
-      ? `${formEditar.data_inicio}T00:00:00`
-      : `${formEditar.data_inicio}T${formEditar.hora_inicio}:00`
+      ? `${formEditar.data_inicio}T00:00:00-03:00`
+      : toLocalISO(formEditar.data_inicio, formEditar.hora_inicio)
     const data_fim = formEditar.data_fim
-      ? (formEditar.dia_todo ? `${formEditar.data_fim}T23:59:59` : `${formEditar.data_fim}T${formEditar.hora_fim}:00`)
+      ? (formEditar.dia_todo ? `${formEditar.data_fim}T23:59:59-03:00` : toLocalISO(formEditar.data_fim, formEditar.hora_fim))
       : data_inicio
 
     await supabase.from('eventos').update({
@@ -421,7 +439,7 @@ function AgendaContent() {
                       {!evento.dia_todo && (
                         <div className="flex items-center gap-1 mt-0.5">
                           <Clock size={11} className="text-gray-400" />
-                          <span className="text-xs text-gray-400">{format(parseISO(evento.data_inicio), 'HH:mm')}</span>
+                          <span className="text-xs text-gray-400">{formatHoraBR(evento.data_inicio)}</span>
                         </div>
                       )}
                       {evento.local && <p className="text-xs text-gray-400 flex items-center gap-1"><MapPin size={10} />{evento.local}</p>}
