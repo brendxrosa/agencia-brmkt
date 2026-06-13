@@ -177,33 +177,59 @@ export default function ClienteAgendaPage() {
 
   // Gera timeline de horários ocupados/livres para o dia selecionado
   function gerarTimeline(dia: Date) {
+    const INTERVALO_MINUTOS = 60 // 1h de buffer após cada evento
+    const INICIO_DIA = 8
+    const FIM_DIA = 18
+
+    // Converte ISO para horas decimais no fuso de Bahia
+    function toHorasBR(isoStr: string) {
+      const d = new Date(isoStr)
+      const hStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bahia' })
+      const [h, m] = hStr.split(':').map(Number)
+      return h + m / 60
+    }
+
+    function horasParaStr(h: number) {
+      const hh = Math.floor(h)
+      const mm = Math.round((h - hh) * 60)
+      return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`
+    }
+
     const eventosNoDia = eventosOcupados
-      .filter(e => isSameDay(parseISO(e.data_inicio), dia) && !e.dia_todo)
+      .filter(e => {
+        const d = new Date(e.data_inicio)
+        const dStr = d.toLocaleDateString('pt-BR', { timeZone: 'America/Bahia' })
+        const diaStr = dia.toLocaleDateString('pt-BR')
+        return dStr === diaStr && !e.dia_todo
+      })
       .map(e => ({
-        inicio: format(parseISO(e.data_inicio), 'HH:mm'),
-        fim: e.data_fim ? format(parseISO(e.data_fim), 'HH:mm') : format(parseISO(e.data_inicio), 'HH:mm'),
-        inicioh: parseISO(e.data_inicio).getHours() + parseISO(e.data_inicio).getMinutes() / 60,
-        fimh: e.data_fim ? parseISO(e.data_fim).getHours() + parseISO(e.data_fim).getMinutes() / 60 : parseISO(e.data_inicio).getHours() + 1,
+        inicioh: toHorasBR(e.data_inicio),
+        fimh: e.data_fim ? toHorasBR(e.data_fim) : toHorasBR(e.data_inicio) + 1,
       }))
       .sort((a, b) => a.inicioh - b.inicioh)
 
     if (eventosNoDia.length === 0) return []
 
-    const INICIO_DIA = 8
-    const FIM_DIA = 18
     const blocos: { inicio: string; fim: string; ocupado: boolean }[] = []
     let cursor = INICIO_DIA
 
     eventosNoDia.forEach(e => {
+      // Bloco livre antes do evento
       if (e.inicioh > cursor) {
-        blocos.push({ inicio: `${String(cursor).padStart(2,'0')}:00`, fim: e.inicio, ocupado: false })
+        blocos.push({ inicio: horasParaStr(cursor), fim: horasParaStr(e.inicioh), ocupado: false })
       }
-      blocos.push({ inicio: e.inicio, fim: e.fim, ocupado: true })
-      cursor = e.fimh
+      // Bloco ocupado (o evento em si)
+      const fimReal = Math.min(e.fimh, FIM_DIA)
+      blocos.push({ inicio: horasParaStr(e.inicioh), fim: horasParaStr(fimReal), ocupado: true })
+      // Cursor avança com 1h de buffer
+      cursor = Math.min(e.fimh + INTERVALO_MINUTOS / 60, FIM_DIA)
     })
+
+    // Bloco livre após o último evento
     if (cursor < FIM_DIA) {
-      blocos.push({ inicio: `${String(Math.floor(cursor)).padStart(2,'0')}:00`, fim: '18:00', ocupado: false })
+      blocos.push({ inicio: horasParaStr(cursor), fim: '18:00', ocupado: false })
     }
+
     return blocos
   }
 
