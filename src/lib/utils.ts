@@ -21,41 +21,46 @@ export function getInitials(name: string) {
 }
 
 export const STATUS_POST_LABELS: Record<string, string> = {
-  briefing: 'Briefing',
+  // Fluxo principal
   copy: 'Copy',
-  design: 'Design',
-  edicao: 'Edição',
-  revisao_interna: 'Revisão Interna',
   aguardando_cliente: 'Aguardando Cliente',
+  design: 'Design',
+  captacao: 'Captação',
+  edicao: 'Edição',
+  aprovacao_arte: 'Aprovação Final',
   aprovado: 'Aprovado',
+  publicado: 'Publicado',
+  // Legados / compatibilidade
+  briefing: 'Briefing',
+  revisao_interna: 'Revisão Interna',
   reprovado: 'Reprovado',
-  // Produção pós-aprovação
   para_captar: 'Para Captar',
   captado: 'Captado',
   pendente_edicao: 'Pendente Edição',
   agendado: 'Agendado',
   postado: 'Postado',
   concluido: 'Concluído',
-  publicado: 'Publicado',
 }
 
 export const STATUS_POST_CORES: Record<string, string> = {
-  briefing: 'bg-gray-100 text-gray-600',
   copy: 'bg-blue-100 text-blue-700',
-  design: 'bg-purple-100 text-purple-700',
-  edicao: 'bg-orange-100 text-orange-700',
-  revisao_interna: 'bg-yellow-100 text-yellow-700',
   aguardando_cliente: 'bg-pink-100 text-pink-700',
+  design: 'bg-purple-100 text-purple-700',
+  captacao: 'bg-sky-100 text-sky-700',
+  edicao: 'bg-orange-100 text-orange-700',
+  aprovacao_arte: 'bg-violet-100 text-violet-700',
   aprovado: 'bg-green-100 text-green-700',
+  publicado: 'bg-emerald-100 text-emerald-700',
+  // Legados
+  briefing: 'bg-gray-100 text-gray-600',
+  revisao_interna: 'bg-yellow-100 text-yellow-700',
   reprovado: 'bg-red-100 text-red-700',
-  // Produção — tons de teal/slate
   para_captar: 'bg-sky-100 text-sky-700',
   captado: 'bg-teal-100 text-teal-700',
   pendente_edicao: 'bg-violet-100 text-violet-700',
   agendado: 'bg-indigo-100 text-indigo-700',
   postado: 'bg-emerald-100 text-emerald-700',
-  concluido: 'bg-gray-100 text-gray-400',  // cinza apagado = arquivado
-  publicado: 'bg-emerald-100 text-emerald-700',
+  concluido: 'bg-gray-100 text-gray-400',
 }
 
 // Etiquetas de feedback do cliente
