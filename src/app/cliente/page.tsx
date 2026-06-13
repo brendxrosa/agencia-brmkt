@@ -81,7 +81,7 @@ export default function ClienteDashboardPage() {
             .eq('visivel_cliente', true)
             .neq('status', 'concluida')
             .order('prazo'),
-          supabase.from('briefings').select('id, nome').eq('ativo', true),
+          supabase.from('briefings').select('id, nome').eq('ativo', true).or(`cliente_id.is.null,cliente_id.eq.${profile.cliente_id},clientes_ids.cs.{${profile.cliente_id}}`),
           supabase.from('briefing_respostas').select('briefing_id, concluido')
             .eq('cliente_id', profile.cliente_id)
         ])
