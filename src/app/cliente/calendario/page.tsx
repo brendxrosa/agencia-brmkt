@@ -86,39 +86,51 @@ export default function ClienteCalendarioPage() {
               return (
                 <button key={dia.toISOString()} onClick={() => setDiaSelecionado(dia)}
                   className={cn(
-                    'relative p-1.5 rounded-xl text-sm transition-all min-h-12 flex flex-col items-center',
+                    'relative p-1 rounded-xl text-sm transition-all min-h-16 flex flex-col',
                     selecionado ? 'bg-vinho text-white' : hoje ? 'bg-rosa-pale text-rosa font-semibold' : 'hover:bg-creme',
                     temPendente && !selecionado && 'ring-1 ring-rosa/40'
                   )}>
-                  <span className="text-xs font-medium">{format(dia, 'd')}</span>
-                  <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
-                    {ps.slice(0, 3).map(p => (
-                      <span key={p.id} className={cn('w-1.5 h-1.5 rounded-full',
-                        ['aguardando_cliente','aprovacao_arte'].includes(p.status_interno) ? (selecionado ? 'bg-white' : 'bg-rosa') :
-                        p.status_interno === 'concluido' ? 'bg-gray-300' :
-                        (selecionado ? 'bg-white/70' : 'bg-rosa/50')
-                      )} />
-                    ))}
-                    {es.slice(0, 1).map(e => (
-                      <span key={e.id} className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.6)' : '#6B0F2A' }} />
+                  <span className="text-xs font-medium self-center mb-0.5">{format(dia, 'd')}</span>
+                  <div className="w-full space-y-0.5 px-0.5">
+                    {ps.slice(0, 2).map(p => {
+                      const cor = STATUS_POST_CORES[p.status_interno] || 'bg-rosa/20 text-rosa'
+                      const corBarra = p.status_interno === 'publicado' ? '#10b981' :
+                        p.status_interno === 'aprovado' ? '#22c55e' :
+                        ['aguardando_cliente','aprovacao_arte'].includes(p.status_interno) ? '#C2185B' :
+                        p.status_interno === 'concluido' ? '#9ca3af' : '#C2185B'
+                      return (
+                        <div key={p.id} className="w-full flex items-center gap-0.5 rounded overflow-hidden"
+                          style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.15)' : corBarra + '18' }}>
+                          <div className="w-1 h-3.5 flex-shrink-0 rounded-sm"
+                            style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.8)' : corBarra }} />
+                          <span className={cn('truncate leading-none py-0.5', selecionado ? 'text-white/90' : 'text-gray-700')}
+                            style={{ fontSize: '9px' }}>
+                            {p.tipo?.slice(0,1).toUpperCase()} {p.titulo?.split(' ').slice(0,3).join(' ')}
+                          </span>
+                        </div>
+                      )
+                    })}
+                    {ps.length > 2 && (
+                      <span className={cn('text-gray-400', selecionado && 'text-white/60')} style={{ fontSize: '9px' }}>
+                        +{ps.length - 2} mais
+                      </span>
+                    )}
+                    {es.slice(0,1).map(e => (
+                      <div key={e.id} className="w-full flex items-center gap-0.5 rounded overflow-hidden"
+                        style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.1)' : '#6B0F2A18' }}>
+                        <div className="w-1 h-3.5 flex-shrink-0 rounded-sm bg-vinho" />
+                        <span className={cn('truncate leading-none py-0.5', selecionado ? 'text-white/80' : 'text-gray-600')}
+                          style={{ fontSize: '9px' }}>
+                          {e.titulo?.split(' ').slice(0,3).join(' ')}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </button>
               )
             })}
           </div>
-          <div className="flex gap-4 mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-rosa" /> Posts
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-rosa ring-1 ring-rosa/40" /> Aguardando aprovação
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-vinho" /> Eventos
-            </div>
-          </div>
+
         </div>
 
         {/* Detalhes do dia */}
@@ -148,7 +160,7 @@ export default function ClienteCalendarioPage() {
                     'w-full text-left flex gap-3 p-2.5 rounded-xl border transition-all hover:shadow-card-hover',
                     post.status_interno === 'concluido'
                       ? 'bg-gray-50 border-gray-100 opacity-60'
-                      : ['aguardando_cliente','aprovacao_arte'].includes(post.status_interno)
+                      : post.status_interno === 'aguardando_cliente'
                       ? 'bg-rosa-pale/40 border-rosa/20 hover:bg-rosa-pale/60'
                       : 'bg-rosa-pale/20 border-rosa/10 hover:bg-rosa-pale/40'
                   )}>
@@ -166,7 +178,7 @@ export default function ClienteCalendarioPage() {
                       </span>
                     </div>
                   </div>
-                  {['aguardando_cliente','aprovacao_arte'].includes(post.status_interno) && (
+                  {post.status_interno === 'aguardando_cliente' && (
                     <span className="text-xs text-rosa font-medium self-center flex-shrink-0">Ver →</span>
                   )}
                 </button>
@@ -199,7 +211,7 @@ export default function ClienteCalendarioPage() {
                   </p>
                 </div>
                 <span className={cn('badge text-xs', STATUS_POST_CORES[post.status_interno])}>
-                  {STATUS_POST_LABELS[post.status_interno]}
+                  {STATUS_POST_LABELS[post.status_interno] || post.status_interno}
                 </span>
               </button>
             ))}
