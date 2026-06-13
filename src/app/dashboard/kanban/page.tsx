@@ -191,9 +191,17 @@ function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, 
         <div className="flex gap-2">
           <select className="input w-40 flex-shrink-0" value={f.tipo_midia} onChange={e => set('tipo_midia', e.target.value)}>
             {TIPO_MIDIA.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+            <option value="imagem">Imagem (upload)</option>
+            <option value="video">Vídeo (upload)</option>
           </select>
-          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://..." />
+          <input className="input flex-1" value={f.link_midia} onChange={e => set('link_midia', e.target.value)} placeholder="https://... ou faça upload após salvar" />
         </div>
+        {f.link_midia && (f.tipo_midia === 'imagem') && (
+          <img src={f.link_midia} alt="Preview" className="mt-2 w-full h-32 object-cover rounded-xl border border-gray-100" />
+        )}
+        {f.link_midia && (f.tipo_midia === 'video') && (
+          <video src={f.link_midia} className="mt-2 w-full h-32 object-cover rounded-xl border border-gray-100" controls />
+        )}
       </div>
     </div>
   )
@@ -214,6 +222,7 @@ export default function KanbanPage() {
   const [form, setForm] = useState<FormPost>(formVazio)
   const [formEditar, setFormEditar] = useState<FormPost>(formVazio)
   const [salvando, setSalvando] = useState(false)
+  const [uploadandoMidia, setUploadandoMidia] = useState<string | null>(null)
 
   // Estado do modal de importação
   const [importCliente, setImportCliente] = useState('')
@@ -289,6 +298,21 @@ export default function KanbanPage() {
     }
     await supabase.from('posts').update(update).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...update } : p))
+  }
+
+  async function uploadMidia(postId: string, file: File) {
+    setUploadandoMidia(postId)
+    const ext = file.name.split('.').pop()
+    const nome = `midia-${postId}-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('docs').upload(`midias/${nome}`, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('docs').getPublicUrl(`midias/${nome}`)
+      const tipoMidia = file.type.startsWith('video') ? 'video' : 'imagem'
+      await supabase.from('posts').update({ link_midia: data.publicUrl, tipo_midia: tipoMidia }).eq('id', postId)
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, link_midia: data.publicUrl, tipo_midia: tipoMidia } : p))
+      if (postDetalhes?.id === postId) setPostDetalhes((p: any) => ({ ...p, link_midia: data.publicUrl, tipo_midia: tipoMidia }))
+    }
+    setUploadandoMidia(null)
   }
 
   async function excluirPost(id: string) {
@@ -495,34 +519,66 @@ export default function KanbanPage() {
                     onDragStart={e => { e.dataTransfer.setData('postId', post.id); setArrastando(post.id) }}
                     onDragEnd={() => setArrastando(null)}
                     onClick={() => abrirDetalhes(post)}
-                    className={cn('bg-white rounded-xl p-3 shadow-card cursor-pointer group transition-all hover:shadow-card-hover',
+                    className={cn('bg-white rounded-xl shadow-card cursor-pointer group transition-all hover:shadow-card-hover overflow-hidden',
                       arrastando === post.id && 'opacity-40')}>
 
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: post.clientes?.cor || '#6B0F2A' }} />
-                        <span className="text-xs text-gray-400 truncate max-w-28">{post.clientes?.nome}</span>
+                    {/* CAPA de mídia — estilo Trello */}
+                    {post.link_midia && post.tipo_midia === 'imagem' && (
+                      <div className="w-full h-28 overflow-hidden relative">
+                        <img src={post.link_midia} alt={post.titulo}
+                          className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                       </div>
-                      <button onClick={e => { e.stopPropagation(); excluirPost(post.id) }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all">
-                        <X size={12} />
-                      </button>
-                    </div>
-
-                    <p className="text-sm font-medium text-gray-800 leading-tight mb-2">{post.titulo}</p>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-gray-400">
-                        {TIPO_ICONS[post.tipo]}
-                        <span className="text-xs capitalize">{post.tipo}</span>
+                    )}
+                    {post.link_midia && post.tipo_midia === 'video' && (
+                      <div className="w-full h-28 overflow-hidden relative bg-gray-900 flex items-center justify-center">
+                        <video src={post.link_midia} className="w-full h-full object-cover opacity-70" muted />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center">
+                            <Video size={14} className="text-gray-800 ml-0.5" />
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        {post.link_midia && (
-                          <a href={post.link_midia} target="_blank" rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()} className="text-vinho hover:text-rosa" title="Ver mídia">
-                            <Paperclip size={12} />
-                          </a>
-                        )}
+                    )}
+                    {post.link_midia && !['imagem','video'].includes(post.tipo_midia || '') && (
+                      <div className="w-full px-3 pt-2">
+                        <a href={post.link_midia} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1.5 text-xs text-vinho hover:underline truncate">
+                          <Paperclip size={11} /> {post.link_midia.replace(/^https?:\/\//, '').slice(0,35)}...
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: post.clientes?.cor || '#6B0F2A' }} />
+                          <span className="text-xs text-gray-400 truncate max-w-28">{post.clientes?.nome}</span>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          {/* Upload rápido de mídia */}
+                          <label onClick={e => e.stopPropagation()} title="Adicionar mídia" className="cursor-pointer text-gray-300 hover:text-vinho transition-colors">
+                            {uploadandoMidia === post.id
+                              ? <div className="w-3 h-3 border border-vinho/30 border-t-vinho rounded-full animate-spin" />
+                              : <Upload size={12} />}
+                            <input type="file" accept="image/*,video/*" className="hidden"
+                              onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidia(post.id, f) }} />
+                          </label>
+                          <button onClick={e => { e.stopPropagation(); excluirPost(post.id) }}
+                            className="text-gray-300 hover:text-red-500 transition-all">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-sm font-medium text-gray-800 leading-tight mb-2">{post.titulo}</p>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-gray-400">
+                          {TIPO_ICONS[post.tipo]}
+                          <span className="text-xs capitalize">{post.tipo}</span>
+                        </div>
                         {post.data_publicacao && (
                           <div className="flex items-center gap-1 text-gray-400">
                             <Calendar size={11} />
@@ -530,16 +586,16 @@ export default function KanbanPage() {
                           </div>
                         )}
                       </div>
-                    </div>
 
-                    <div className="mt-2 pt-2 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-all">
-                      <div className="flex flex-wrap gap-1">
-                        {COLUNAS.filter(c => c !== coluna).slice(0, 3).map(c => (
-                          <button key={c} onClick={e => { e.stopPropagation(); moverPost(post.id, c) }}
-                            className="text-xs px-2 py-0.5 rounded-lg bg-creme hover:bg-rosa-pale text-gray-600 transition-colors">
-                            {STATUS_POST_LABELS[c]}
-                          </button>
-                        ))}
+                      <div className="mt-2 pt-2 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-all">
+                        <div className="flex flex-wrap gap-1">
+                          {COLUNAS.filter(c => c !== coluna).slice(0, 3).map(c => (
+                            <button key={c} onClick={e => { e.stopPropagation(); moverPost(post.id, c) }}
+                              className="text-xs px-2 py-0.5 rounded-lg bg-creme hover:bg-rosa-pale text-gray-600 transition-colors">
+                              {STATUS_POST_LABELS[c]}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
