@@ -7,8 +7,8 @@ import { STATUS_POST_LABELS, STATUS_POST_CORES, cn, formatDate } from '@/lib/uti
 import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, Save, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react'
 
 const COLUNAS = [
-  'briefing', 'copy', 'design', 'edicao',
-  'revisao_interna', 'aguardando_cliente', 'aprovado', 'publicado'
+  'copy', 'aguardando_cliente', 'design', 'captacao',
+  'edicao', 'aprovacao_arte', 'aprovado', 'publicado'
 ] as const
 
 const TIPO_ICONS: Record<string, React.ReactNode> = {
@@ -112,7 +112,7 @@ type FormPost = {
 const formVazio: FormPost = {
   cliente_id: '', titulo: '', tipo: 'reels', data_publicacao: '',
   tema: '', copy: '', legenda: '', direcionamento: '',
-  link_midia: '', tipo_midia: 'link', status_interno: 'briefing'
+  link_midia: '', tipo_midia: 'link', status_interno: 'copy'
 }
 
 type PostImportado = {
@@ -209,6 +209,7 @@ export default function KanbanPage() {
   const [postDetalhes, setPostDetalhes] = useState<any>(null)
   const [modoEditar, setModoEditar] = useState(false)
   const [filtroCliente, setFiltroCliente] = useState('todos')
+  const [ordenacao, setOrdenacao] = useState<'data_asc'|'data_desc'|'criacao'|'az'|'za'>('data_asc')
   const [arrastando, setArrastando] = useState<string | null>(null)
   const [form, setForm] = useState<FormPost>(formVazio)
   const [formEditar, setFormEditar] = useState<FormPost>(formVazio)
@@ -394,7 +395,25 @@ export default function KanbanPage() {
   // ────────────────────────────────────────────────────────────
 
   const postsFiltrados = filtroCliente === 'todos' ? posts : posts.filter(p => p.cliente_id === filtroCliente)
-  const postsPorColuna = (status: string) => postsFiltrados.filter(p => p.status_interno === status)
+
+  function ordenarPosts(lista: any[]) {
+    return [...lista].sort((a, b) => {
+      if (ordenacao === 'az') return (a.titulo || '').localeCompare(b.titulo || '')
+      if (ordenacao === 'za') return (b.titulo || '').localeCompare(a.titulo || '')
+      if (ordenacao === 'criacao') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      if (ordenacao === 'data_desc') {
+        if (!a.data_publicacao) return 1
+        if (!b.data_publicacao) return -1
+        return new Date(b.data_publicacao).getTime() - new Date(a.data_publicacao).getTime()
+      }
+      // data_asc (padrão)
+      if (!a.data_publicacao) return 1
+      if (!b.data_publicacao) return -1
+      return new Date(a.data_publicacao).getTime() - new Date(b.data_publicacao).getTime()
+    })
+  }
+
+  const postsPorColuna = (status: string) => ordenarPosts(postsFiltrados.filter(p => p.status_interno === status))
 
   const setF = (k: keyof FormPost, v: any) => setForm(f => ({ ...f, [k]: v }))
   const setFE = (k: keyof FormPost, v: any) => setFormEditar(f => ({ ...f, [k]: v }))
@@ -411,6 +430,16 @@ export default function KanbanPage() {
           <p className="text-gray-500 text-sm mt-1">{posts.length} posts no pipeline</p>
         </div>
         <div className="flex items-center gap-2">
+          <select
+            className="input text-sm py-1.5 pr-8 w-auto"
+            value={ordenacao}
+            onChange={e => setOrdenacao(e.target.value as any)}>
+            <option value="data_asc">Data ↑</option>
+            <option value="data_desc">Data ↓</option>
+            <option value="criacao">Mais recentes</option>
+            <option value="az">A → Z</option>
+            <option value="za">Z → A</option>
+          </select>
           <button onClick={() => setModalImportar(true)} className="btn-secondary flex items-center gap-2 text-sm">
             <Upload size={15} /> Importar CSV
           </button>
