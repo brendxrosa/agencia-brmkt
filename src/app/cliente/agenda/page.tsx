@@ -7,6 +7,22 @@ import { Calendar, ChevronLeft, ChevronRight, Plus, X, Clock, CheckCircle, XCirc
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, isToday, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
+// Converte data/hora local (Brasil UTC-3) para ISO string com timezone correto
+function toLocalISO(data: string, hora: string) {
+  return `${data}T${hora}:00-03:00`
+}
+
+function formatHoraBR(isoStr: string) {
+  const d = new Date(isoStr)
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bahia' })
+}
+
+function formatDataBR(isoStr: string) {
+  const d = new Date(isoStr)
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Bahia' })
+}
+
+
 const TIPOS_EVENTO = [
   { key: 'reuniao', label: 'Reunião' },
   { key: 'captacao', label: 'Captação' },
@@ -147,8 +163,8 @@ export default function ClienteAgendaPage() {
     setSalvando(true)
     await supabase.from('eventos').insert({
       titulo: form.titulo, tipo: form.tipo, cliente_id: clienteId,
-      data_inicio: `${form.data}T${form.hora_inicio}:00`,
-      data_fim: `${form.data}T${form.hora_fim}:00`,
+      data_inicio: toLocalISO(form.data, form.hora_inicio),
+      data_fim: toLocalISO(form.data, form.hora_fim),
       descricao: form.descricao || null,
       dia_todo: false, visivel_cliente: true,
       status: 'pendente', solicitado_por: userId,
@@ -364,7 +380,7 @@ export default function ClienteAgendaPage() {
                       <div key={s.id} className={cn('border rounded-xl p-3', config.cor)}>
                         <p className="text-sm font-medium">{s.titulo}</p>
                         <p className="text-xs mt-0.5">
-                          {format(parseISO(s.data_inicio), 'HH:mm')} - {format(parseISO(s.data_fim), 'HH:mm')}
+                          {formatHoraBR(s.data_inicio)} - {formatHoraBR(s.data_fim)}
                         </p>
                         <span className="flex items-center gap-1 text-xs mt-1 font-medium">
                           <Icon size={11} /> {config.label}
