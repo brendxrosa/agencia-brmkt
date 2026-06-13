@@ -42,13 +42,19 @@ export default function BriefingsPage() {
   // Estado do editor
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
+  const [clientes, setClientes] = useState<any[]>([])
+  const [clienteVinculo, setClienteVinculo] = useState<string>('')
   const [perguntasSelecionadas, setPerguntasSelecionadas] = useState<string[]>([])
   const [categoriasAbertas, setCategoriasAbertas] = useState<string[]>([])
   const [pacoteBase, setPacoteBase] = useState('')
 
   async function carregar() {
-    const { data } = await supabase.from('briefings').select('*').order('created_at')
-    setBriefings(data || [])
+    const [{ data: b }, { data: c }] = await Promise.all([
+      supabase.from('briefings').select('*, clientes(nome)').order('created_at'),
+      supabase.from('clientes').select('id, nome').eq('status', 'ativo').order('nome')
+    ])
+    setBriefings(b || [])
+    setClientes(c || [])
     setLoading(false)
   }
 
@@ -58,6 +64,7 @@ export default function BriefingsPage() {
     setNome('')
     setDescricao('')
     setPerguntasSelecionadas([])
+    setClienteVinculo('')
     setPacoteBase('')
     setBriefingAtual(null)
     setModalEditar(true)
@@ -112,10 +119,11 @@ export default function BriefingsPage() {
 
     if (briefingAtual?.id) {
       await supabase.from('briefings').update({
-        nome, descricao, perguntas, updated_at: new Date().toISOString()
+        nome, descricao, perguntas,
+        cliente_id: clienteVinculo || null, updated_at: new Date().toISOString()
       }).eq('id', briefingAtual.id)
     } else {
-      await supabase.from('briefings').insert({ nome, descricao, perguntas })
+      await supabase.from('briefings').insert({ nome, descricao, perguntas, cliente_id: clienteVinculo || null })
     }
 
     setSalvando(false)
@@ -174,6 +182,10 @@ export default function BriefingsPage() {
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-800">{b.nome}</p>
                     {!b.ativo && <span className="badge bg-gray-100 text-gray-500 text-xs">Inativo</span>}
+                    {b.clientes?.nome
+                      ? <span className="badge bg-blue-50 text-blue-600 text-xs">👤 {b.clientes.nome}</span>
+                      : <span className="badge bg-gray-50 text-gray-400 text-xs">🌐 Global</span>
+                    }
                   </div>
                   {b.descricao && <p className="text-xs text-gray-400 mt-0.5">{b.descricao}</p>}
                 </div>
