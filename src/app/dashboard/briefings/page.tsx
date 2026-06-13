@@ -248,6 +248,21 @@ export default function BriefingsPage() {
               <input className="input" value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Breve descrição do briefing" />
             </div>
 
+            <div>
+              <label className="label">Vincular a um cliente</label>
+              <select className="input" value={clienteVinculo} onChange={e => setClienteVinculo(e.target.value)}>
+                <option value="">🌐 Global — aparece para todos os clientes</option>
+                {clientes.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                {clienteVinculo
+                  ? `Só aparecerá para: ${clientes.find((c: any) => c.id === clienteVinculo)?.nome}`
+                  : 'Aparecerá no portal de todos os clientes ativos'}
+              </p>
+            </div>
+
             {/* Pacote base */}
             <div>
               <label className="label">Começar com pacote pré-definido (opcional)</label>
