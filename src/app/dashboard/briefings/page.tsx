@@ -43,7 +43,7 @@ export default function BriefingsPage() {
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
   const [clientes, setClientes] = useState<any[]>([])
-  const [clienteVinculo, setClienteVinculo] = useState<string>('')
+  const [clientesVinculo, setClientesVinculo] = useState<string[]>([])
   const [perguntasSelecionadas, setPerguntasSelecionadas] = useState<string[]>([])
   const [categoriasAbertas, setCategoriasAbertas] = useState<string[]>([])
   const [pacoteBase, setPacoteBase] = useState('')
@@ -64,7 +64,7 @@ export default function BriefingsPage() {
     setNome('')
     setDescricao('')
     setPerguntasSelecionadas([])
-    setClienteVinculo('')
+    setClientesVinculo([])
     setPacoteBase('')
     setBriefingAtual(null)
     setModalEditar(true)
@@ -74,7 +74,7 @@ export default function BriefingsPage() {
     setNome(b.nome)
     setDescricao(b.descricao || '')
     setPerguntasSelecionadas(b.perguntas.map((p: any) => p.id))
-    setClienteVinculo(b.cliente_id || '')
+    setClientesVinculo(b.clientes_ids || (b.cliente_id ? [b.cliente_id] : []))
     setPacoteBase('')
     setBriefingAtual(b)
     setModalEditar(true)
@@ -121,10 +121,10 @@ export default function BriefingsPage() {
     if (briefingAtual?.id) {
       await supabase.from('briefings').update({
         nome, descricao, perguntas,
-        cliente_id: clienteVinculo || null, updated_at: new Date().toISOString()
+        cliente_id: clientesVinculo[0] || null, clientes_ids: clientesVinculo, updated_at: new Date().toISOString()
       }).eq('id', briefingAtual.id)
     } else {
-      await supabase.from('briefings').insert({ nome, descricao, perguntas, cliente_id: clienteVinculo || null })
+      await supabase.from('briefings').insert({ nome, descricao, perguntas, cliente_id: clientesVinculo[0] || null, clientes_ids: clientesVinculo })
     }
 
     setSalvando(false)
@@ -183,8 +183,10 @@ export default function BriefingsPage() {
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-800">{b.nome}</p>
                     {!b.ativo && <span className="badge bg-gray-100 text-gray-500 text-xs">Inativo</span>}
-                    {b.clientes?.nome
-                      ? <span className="badge bg-blue-50 text-blue-600 text-xs">👤 {b.clientes.nome}</span>
+                    {(b.clientes_ids?.length > 0 || b.cliente_id)
+                      ? <span className="badge bg-blue-50 text-blue-600 text-xs">
+                          👤 {b.clientes_ids?.length > 1 ? `${b.clientes_ids.length} clientes` : (b.clientes?.nome || '1 cliente')}
+                        </span>
                       : <span className="badge bg-gray-50 text-gray-400 text-xs">🌐 Global</span>
                     }
                   </div>
@@ -249,17 +251,35 @@ export default function BriefingsPage() {
             </div>
 
             <div>
-              <label className="label">Vincular a um cliente</label>
-              <select className="input" value={clienteVinculo} onChange={e => setClienteVinculo(e.target.value)}>
-                <option value="">🌐 Global — aparece para todos os clientes</option>
+              <label className="label">Vincular a clientes</label>
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <label className="flex items-center gap-3 px-3 py-2.5 hover:bg-creme cursor-pointer border-b border-gray-100">
+                  <input type="checkbox"
+                    checked={clientesVinculo.length === 0}
+                    onChange={() => setClientesVinculo([])}
+                    className="rounded" />
+                  <span className="text-sm">🌐 Global — todos os clientes</span>
+                </label>
                 {clientes.map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.nome}</option>
+                  <label key={c.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-creme cursor-pointer border-b border-gray-100 last:border-0">
+                    <input type="checkbox"
+                      checked={clientesVinculo.includes(c.id)}
+                      onChange={e => {
+                        if (e.target.checked) setClientesVinculo(prev => [...prev, c.id])
+                        else setClientesVinculo(prev => prev.filter(id => id !== c.id))
+                      }}
+                      className="rounded" />
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.cor }} />
+                      <span className="text-sm">{c.nome}</span>
+                    </div>
+                  </label>
                 ))}
-              </select>
+              </div>
               <p className="text-xs text-gray-400 mt-1">
-                {clienteVinculo
-                  ? `Só aparecerá para: ${clientes.find((c: any) => c.id === clienteVinculo)?.nome}`
-                  : 'Aparecerá no portal de todos os clientes ativos'}
+                {clientesVinculo.length === 0
+                  ? 'Aparecerá para todos os clientes'
+                  : `Só aparecerá para: ${clientesVinculo.map(id => clientes.find((c: any) => c.id === id)?.nome).filter(Boolean).join(', ')}`}
               </p>
             </div>
 
