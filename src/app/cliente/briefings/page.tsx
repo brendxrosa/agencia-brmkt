@@ -29,7 +29,7 @@ export default function ClienteBriefingsPage() {
     // Busca briefings ativos
     const { data: b } = await supabase.from('briefings').select('*')
       .eq('ativo', true)
-      .or(`cliente_id.is.null,cliente_id.eq.${profile.cliente_id}`)
+      .or(`cliente_id.is.null,cliente_id.eq.${profile.cliente_id},clientes_ids.cs.{${profile.cliente_id}}`)
       .order('created_at')
 
     // Busca respostas do cliente
