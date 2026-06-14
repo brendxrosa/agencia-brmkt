@@ -105,7 +105,7 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 type FormPost = {
   cliente_id: string; titulo: string; tipo: Post['tipo']
   data_publicacao: string; tema: string; copy: string
-  legenda: string; direcionamento: string; link_midia: string; tipo_midia: string
+  legenda: string; direcionamento: string; link_midia: string; tipo_midia: string; link_externo: string; midias_urls: string[]
   status_interno: Post['status_interno']
 }
 
