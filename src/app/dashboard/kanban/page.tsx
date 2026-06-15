@@ -130,7 +130,7 @@ function CamposPost({ f, set, showStatus = false, clientes, STATUS_POST_LABELS, 
   STATUS_POST_LABELS: Record<string, string>
   COLUNAS: readonly string[]
   TIPO_MIDIA: { key: string; label: string }[]
-  onUploadMidia?: (file: File, set: (k: any, v: any) => void) => void
+  onUploadMidia?: (file: File, set: (k: any, v: any) => void, currentUrls?: string[]) => void
   uploadandoForm?: boolean
 }) {
   return (
