@@ -78,10 +78,17 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
     setAtualizando(true)
     const isAprovado = etiqueta === 'aprovado'
 
+    const novoStatusInterno = isAprovado
+      ? (isAprovacaoArte ? 'aprovado' : 'aprovacao_arte')
+      : (isAprovacaoArte ? 'edicao' : 'revisao_interna')
+    const novoStatusCliente = isAprovado
+      ? (isAprovacaoArte ? 'aprovado' : 'pendente')
+      : 'reprovado'
+
     await supabase.from('posts').update({
       etiqueta_cliente: etiqueta,
-      status_cliente: isAprovado ? 'aprovado' : 'reprovado',
-      status_interno: isAprovado ? 'aprovado' : 'revisao_interna',
+      status_cliente: novoStatusCliente,
+      status_interno: novoStatusInterno,
       data_aprovacao: new Date().toISOString(),
     }).eq('id', post.id)
 
@@ -123,7 +130,8 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
     setEnviando(false)
   }
 
-  const aguardando = post.status_interno === 'aguardando_cliente'
+  const aguardando = ['aguardando_cliente', 'aprovacao_arte'].includes(post.status_interno)
+  const isAprovacaoArte = post.status_interno === 'aprovacao_arte'
   const concluido = post.status_interno === 'concluido'
   const midia = post.link_midia
 
@@ -173,8 +181,43 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
           )}
           {post.direcionamento && <div><p className="label">Direcionamento</p><p className="text-sm text-gray-500 italic">{post.direcionamento}</p></div>}
 
-          {/* Preview de mídia */}
-          {midia && (
+          {/* Link externo */}
+          {post.link_externo && (
+            <div>
+              <p className="label mb-1">Link</p>
+              <a href={post.link_externo} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-100 rounded-xl hover:bg-creme transition-all text-sm text-vinho">
+                <ExternalLink size={15} className="flex-shrink-0" />
+                <span className="truncate">{post.link_externo}</span>
+              </a>
+            </div>
+          )}
+
+          {/* Galeria de arquivos */}
+          {(post.midias_urls || []).length > 0 && (
+            <div>
+              <p className="label mb-1.5">Arte / Arquivos</p>
+              <div className={(post.midias_urls || []).length === 1 ? 'flex flex-col gap-2' : 'grid grid-cols-2 gap-2'}>
+                {(post.midias_urls as string[]).map((url: string, i: number) => (
+                  <div key={i} className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                    {/\.(png|jpg|jpeg|gif|webp)$/i.test(url) ? (
+                      <img src={url} alt={'Arte ' + (i+1)} className="w-full max-h-64 object-contain" />
+                    ) : /\.(mp4|mov|webm)$/i.test(url) ? (
+                      <video src={url} controls className="w-full max-h-64" />
+                    ) : (
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-3 text-sm text-vinho hover:underline">
+                        <Paperclip size={14} /> Arquivo {i + 1}
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fallback: link_midia legado */}
+          {midia && !(post.midias_urls || []).length && !post.link_externo && (
             <div>
               <p className="label mb-1.5">Arte / Arquivo</p>
               {isImage(midia) ? (
@@ -186,7 +229,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
                     <ExternalLink size={18} className="text-vinho" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Ver vídeo</p>
+                    <p className="text-sm font-medium text-gray-800">Ver arquivo</p>
                     <p className="text-xs text-gray-400 truncate max-w-64">{midia}</p>
                   </div>
                 </a>
@@ -205,7 +248,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
               {!mostrarEtiquetas && !etiquetaPendente ? (
                 <button onClick={() => setMostrarEtiquetas(true)}
                   className="w-full flex items-center justify-center gap-2 bg-vinho text-white px-4 py-3 rounded-xl font-medium text-sm hover:bg-vinho/90 transition-all">
-                  <Tag size={15} /> Dar feedback
+                  <Tag size={15} /> {isAprovacaoArte ? 'Avaliar arte' : 'Dar feedback'}
                 </button>
               ) : etiquetaPendente ? (
                 /* Fluxo de reprovação: etiqueta escolhida, aguarda comentário */
