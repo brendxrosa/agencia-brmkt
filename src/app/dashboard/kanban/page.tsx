@@ -117,8 +117,8 @@ const formVazio: FormPost = {
 
 type PostImportado = {
   titulo: string; tipo: Post['tipo']; data_publicacao: string
-  tema: string; copy: string; legenda: string; direcionamento: string
-  hora: string; ok: boolean; erro?: string
+  tema: string; abordagem: string; copy: string; legenda: string; direcionamento: string
+  hora: string; links: string[]; ok: boolean; erro?: string
 }
 
 // ─── CamposPost movido para fora do componente pai (evita perda de foco) ───
@@ -444,9 +444,14 @@ export default function KanbanPage() {
       tipo: p.tipo,
       data_publicacao: p.data_publicacao || null,
       tema: p.tema,
+      abordagem: p.abordagem || null,
       copy: p.copy,
       legenda: p.legenda,
-      direcionamento: p.direcionamento,
+      direcionamento: p.direcionamento || null,
+      // Links do CSV: primeiro vai pro link_externo, todos vão pro midias_urls
+      link_externo: p.links[0] || null,
+      midias_urls: p.links,
+      link_midia: p.links[0] || null,
       status_interno: 'aguardando_cliente' as Post['status_interno'],
       status_cliente: 'pendente',
     }))
@@ -751,6 +756,7 @@ export default function KanbanPage() {
                             {p.data_publicacao && <span>📅 {p.data_publicacao}</span>}
                             {p.hora && <span>🕐 {p.hora}</span>}
                             <span className="capitalize">{p.tipo}</span>
+                            {p.links.length > 0 && <span>🔗 {p.links.length} link(s)</span>}
                             {!p.ok && <span className="text-red-500">• {p.erro}</span>}
                           </div>
                         </div>
