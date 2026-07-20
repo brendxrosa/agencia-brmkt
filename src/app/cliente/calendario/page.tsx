@@ -210,9 +210,17 @@ export default function ClienteCalendarioPage() {
                     {post.tipo} · {post.data_publicacao ? formatDate(post.data_publicacao) : 'Sem data'}
                   </p>
                 </div>
-                <span className={cn('badge text-xs', STATUS_POST_CORES[post.status_interno])}>
-                  {STATUS_POST_LABELS[post.status_interno] || post.status_interno}
-                </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className={cn('badge text-xs', STATUS_POST_CORES[post.status_interno])}>
+                    {STATUS_POST_LABELS[post.status_interno] || post.status_interno}
+                  </span>
+                  {post.status_cliente === 'reprovado' && (
+                    <span className="badge bg-red-100 text-red-600 text-xs">✗</span>
+                  )}
+                  {post.status_cliente === 'aprovado' && (
+                    <span className="badge bg-emerald-100 text-emerald-600 text-xs">✓</span>
+                  )}
+                </div>
               </button>
             ))}
           </div>
