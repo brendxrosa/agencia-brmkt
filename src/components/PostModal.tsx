@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate, STATUS_POST_LABELS, STATUS_POST_CORES, ETIQUETA_LABELS, ETIQUETA_CORES } from '@/lib/utils'
 import { X, Paperclip, Send, MessageCircle, Tag, AlertCircle, ExternalLink, Image as ImageIcon } from 'lucide-react'
-import { formatDistanceToNow, parseISO } from 'date-fns'
+import { formatDistanceToNow, parseISO, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const ETIQUETAS_FEEDBACK = [
@@ -81,7 +81,7 @@ export default function PostModal({ post, userId, userName, role = 'cliente', on
 
     const novoStatusInterno = isAprovado
       ? (isAprovacaoArte ? 'aprovado' : 'aprovacao_arte')
-      : (isAprovacaoArte ? 'edicao' : 'revisao_interna')
+      : 'alteracao'  // reprovado sempre vai pra coluna de alteração
     const novoStatusCliente = isAprovado
       ? (isAprovacaoArte ? 'aprovado' : 'pendente')
       : 'reprovado'
@@ -272,9 +272,10 @@ export default function PostModal({ post, userId, userName, role = 'cliente', on
                     </button>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-600 mb-1.5">
-                      Comentário obrigatório — o que precisa ser ajustado?
-                    </p>
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-2">
+                      <p className="text-xs font-semibold text-orange-700 mb-0.5">⚠️ Comentário obrigatório</p>
+                      <p className="text-xs text-orange-600">Para reprovar, explique o que precisa ser alterado. O time só conseguirá fazer os ajustes com essa informação.</p>
+                    </div>
                     <input
                       ref={comentarioRef}
                       className={cn('input w-full text-sm', erroComentario && 'border-red-300 ring-1 ring-red-200')}
@@ -340,7 +341,9 @@ export default function PostModal({ post, userId, userName, role = 'cliente', on
                         {c.conteudo}
                       </div>
                       <p className="text-xs text-gray-400 px-1 mt-0.5">
-                        {c.autor_nome} · {formatDistanceToNow(parseISO(c.created_at), { addSuffix: true, locale: ptBR })}
+                        <span className="font-medium">{c.autor_role === 'admin' ? '👩‍💼 Agência' : '👤 ' + c.autor_nome}</span>
+                        {' · '}
+                        {format(parseISO(c.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
                       </p>
                     </div>
                   </div>
