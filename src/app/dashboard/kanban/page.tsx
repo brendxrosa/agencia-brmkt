@@ -263,6 +263,8 @@ export default function KanbanPage() {
   const [uploadandoMidia, setUploadandoMidia] = useState<string | null>(null)
   const [postModalKanban, setPostModalKanban] = useState<any>(null)
   const [uploadandoForm, setUploadandoForm] = useState(false)
+  const [userId, setUserId] = useState('')
+  const [userName, setUserName] = useState('')
 
   // Estado do modal de importação
   const [importCliente, setImportCliente] = useState('')
@@ -273,6 +275,14 @@ export default function KanbanPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function carregar() {
+    if (!userId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+        const { data: p } = await supabase.from('profiles').select('nome').eq('id', user.id).single()
+        if (p?.nome) setUserName(p.nome)
+      }
+    }
     const [{ data: p }, { data: c }] = await Promise.all([
       supabase.from('posts').select('*, clientes(nome, cor)').order('created_at', { ascending: false }),
       supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome')
