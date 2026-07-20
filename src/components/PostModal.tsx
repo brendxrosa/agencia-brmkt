@@ -23,11 +23,12 @@ interface Props {
   post: any
   userId: string
   userName: string
+  role?: 'admin' | 'cliente'
   onClose: () => void
   onAtualizado: () => void
 }
 
-export default function PostModal({ post, userId, userName, onClose, onAtualizado }: Props) {
+export default function PostModal({ post, userId, userName, role = 'cliente', onClose, onAtualizado }: Props) {
   const supabase = createClient()
   const [comentarios, setComentarios] = useState<any[]>([])
   const [comentarioTexto, setComentarioTexto] = useState('')
@@ -94,14 +95,14 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
 
     // Registra etiqueta como comentário automático
     await supabase.from('aprovacao_comentarios').insert({
-      doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: 'cliente',
+      doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: role,
       conteudo: `🏷️ ${ETIQUETA_LABELS[etiqueta] || etiqueta}`,
     })
 
     // Se tiver comentário adicional, registra separado
     if (comentarioAdicional) {
       await supabase.from('aprovacao_comentarios').insert({
-        doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: 'cliente',
+        doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: role,
         conteudo: comentarioAdicional,
       })
     }
@@ -121,7 +122,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
     if (!texto) return
     setEnviando(true)
     await supabase.from('aprovacao_comentarios').insert({
-      doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: 'cliente',
+      doc_id: post.id, autor_id: userId, autor_nome: userName, autor_role: role,
       conteudo: texto,
     })
     setComentarioTexto('')
@@ -153,6 +154,16 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
                 <span className={cn('badge text-xs', STATUS_POST_CORES[post.status_interno])}>
                   {STATUS_POST_LABELS[post.status_interno]}
                 </span>
+                {post.status_interno === 'aguardando_cliente' && (
+                  <span className="badge bg-orange-50 text-orange-600 text-xs border border-orange-200">
+                    Etapa 1 de 2 · Conteúdo
+                  </span>
+                )}
+                {post.status_interno === 'aprovacao_arte' && (
+                  <span className="badge bg-violet-50 text-violet-600 text-xs border border-violet-200">
+                    Etapa 2 de 2 · Arte
+                  </span>
+                )}
                 {post.data_publicacao && <span className="text-xs text-gray-400">📅 {formatDate(post.data_publicacao)}</span>}
                 {etiquetaSelecionada && ETIQUETA_LABELS[etiquetaSelecionada] && (
                   <span className={cn('badge text-xs flex items-center gap-1', ETIQUETA_CORES[etiquetaSelecionada])}>
@@ -311,7 +322,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
           {/* Comentários — visível para todos (cliente e admin) */}
           <div className="pt-2 border-t border-gray-100 space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-              <MessageCircle size={12} /> Comentários {comentarios.length > 0 && <span className="badge bg-gray-100 text-gray-500">{comentarios.length}</span>}
+              <MessageCircle size={12} /> {role === 'admin' ? 'Comentários' : 'Comentários'} {comentarios.length > 0 && <span className="badge bg-gray-100 text-gray-500">{comentarios.length}</span>}
             </p>
             {comentarios.length === 0 ? (
               <p className="text-xs text-gray-400">Nenhum comentário ainda.</p>
@@ -337,8 +348,7 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
               </div>
             )}
             {/* Campo de comentário — sempre visível, para admin e cliente */}
-            {!etiquetaPendente && (
-              <div className="flex gap-2">
+            <div className="flex gap-2">
                 <input className="input flex-1 text-sm" value={comentarioTexto}
                   onChange={e => setComentarioTexto(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviarComentario()}
@@ -347,7 +357,6 @@ export default function PostModal({ post, userId, userName, onClose, onAtualizad
                   <Send size={15} />
                 </button>
               </div>
-            )}
           </div>
         </div>
       </div>
