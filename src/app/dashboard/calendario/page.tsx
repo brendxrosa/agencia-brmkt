@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
 import { STATUS_POST_LABELS, STATUS_POST_CORES } from '@/lib/utils'
 import { ChevronLeft, ChevronRight, Calendar, Filter, X, Paperclip, Clock, MapPin, Link } from 'lucide-react'
+import PostModal from '@/components/PostModal'
+import { ETIQUETA_LABELS } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -506,6 +508,17 @@ export default function CalendarioPage() {
           </div>
         )}
       </Modal>
+      {/* PostModal para edição completa */}
+      {postModalAberto && (
+        <PostModal
+          post={postModalAberto}
+          userId={userId}
+          userName={userName}
+          role="admin"
+          onClose={() => setPostModalAberto(null)}
+          onAtualizado={() => { carregar(); setPostModalAberto(null) }}
+        />
+      )}
     </div>
   )
 }
