@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import PostModal from '@/components/PostModal'
 import { type Post } from '@/types'
 import { STATUS_POST_LABELS, STATUS_POST_CORES, ETIQUETA_LABELS, cn, formatDate } from '@/lib/utils'
 import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, Save, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react'
@@ -260,6 +261,7 @@ export default function KanbanPage() {
   const [formEditar, setFormEditar] = useState<FormPost>(formVazio)
   const [salvando, setSalvando] = useState(false)
   const [uploadandoMidia, setUploadandoMidia] = useState<string | null>(null)
+  const [postModalKanban, setPostModalKanban] = useState<any>(null)
   const [uploadandoForm, setUploadandoForm] = useState(false)
 
   // Estado do modal de importação
@@ -596,7 +598,7 @@ export default function KanbanPage() {
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('postId', post.id); setArrastando(post.id) }}
                     onDragEnd={() => setArrastando(null)}
-                    onClick={() => abrirDetalhes(post)}
+                    onClick={() => setPostModalKanban(post)}
                     className={cn(
                       'bg-white rounded-xl shadow-card cursor-pointer group transition-all hover:shadow-card-hover overflow-hidden border-l-4',
                       arrastando === post.id && 'opacity-40',
@@ -817,6 +819,18 @@ export default function KanbanPage() {
           )}
         </div>
       </Modal>
+
+      {/* PostModal com comentários e edição */}
+      {postModalKanban && (
+        <PostModal
+          post={postModalKanban}
+          userId={userId}
+          userName={userName}
+          role="admin"
+          onClose={() => setPostModalKanban(null)}
+          onAtualizado={() => { carregar(); setPostModalKanban(null) }}
+        />
+      )}
 
       {/* Modal detalhes/edição */}
       <Modal open={!!postDetalhes} onClose={() => { setPostDetalhes(null); setModoEditar(false) }}>
