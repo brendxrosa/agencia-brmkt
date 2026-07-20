@@ -3,13 +3,16 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type Post } from '@/types'
-import { STATUS_POST_LABELS, STATUS_POST_CORES, cn, formatDate } from '@/lib/utils'
+import { STATUS_POST_LABELS, STATUS_POST_CORES, ETIQUETA_LABELS, cn, formatDate } from '@/lib/utils'
 import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, Save, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react'
 
 const COLUNAS = [
   'copy', 'aguardando_cliente', 'design', 'captacao',
   'edicao', 'aprovacao_arte', 'aprovado', 'publicado'
 ] as const
+
+// Colunas especiais que não aparecem no board mas recebem posts
+const COLUNAS_ESPECIAIS = ['revisao_interna'] as const
 
 const TIPO_ICONS: Record<string, React.ReactNode> = {
   reels: <Video size={12} />,
@@ -576,6 +579,11 @@ export default function KanbanPage() {
               <div className="p-3 flex items-center gap-2">
                 <span className={cn('badge text-xs', STATUS_POST_CORES[coluna])}>{STATUS_POST_LABELS[coluna]}</span>
                 <span className="text-xs text-gray-400 font-medium">{postsPorColuna(coluna).length}</span>
+                {postsPorColuna(coluna).filter(p => p.status_cliente === 'reprovado').length > 0 && (
+                  <span className="badge bg-red-100 text-red-600 text-xs ml-auto animate-pulse">
+                    {postsPorColuna(coluna).filter(p => p.status_cliente === 'reprovado').length} reprov.
+                  </span>
+                )}
               </div>
 
               <div className="px-3 pb-3 space-y-2 min-h-24">
@@ -585,8 +593,14 @@ export default function KanbanPage() {
                     onDragStart={e => { e.dataTransfer.setData('postId', post.id); setArrastando(post.id) }}
                     onDragEnd={() => setArrastando(null)}
                     onClick={() => abrirDetalhes(post)}
-                    className={cn('bg-white rounded-xl shadow-card cursor-pointer group transition-all hover:shadow-card-hover overflow-hidden',
-                      arrastando === post.id && 'opacity-40')}>
+                    className={cn(
+                      'bg-white rounded-xl shadow-card cursor-pointer group transition-all hover:shadow-card-hover overflow-hidden border-l-4',
+                      arrastando === post.id && 'opacity-40',
+                      post.status_cliente === 'reprovado' && 'border-l-red-500 bg-red-50/30',
+                      post.status_cliente === 'aprovado' && post.status_interno !== 'aprovacao_arte' && 'border-l-emerald-500',
+                      post.status_cliente === 'pendente' && post.status_interno === 'aguardando_cliente' && 'border-l-orange-400',
+                      !['reprovado','aprovado'].includes(post.status_cliente || '') && post.status_interno !== 'aguardando_cliente' && 'border-l-transparent'
+                    )}>
 
                     {/* CAPA de mídia — estilo Trello */}
                     {post.link_midia && post.tipo_midia === 'imagem' && (
@@ -623,10 +637,16 @@ export default function KanbanPage() {
 
                     <div className="p-3">
                       <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: post.clientes?.cor || '#6B0F2A' }} />
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: post.clientes?.cor || '#6B0F2A' }} />
                           <span className="text-xs text-gray-400 truncate max-w-28">{post.clientes?.nome}</span>
                         </div>
+                        {post.status_cliente === 'reprovado' && (
+                          <span className="badge bg-red-100 text-red-600 text-xs flex-shrink-0">✗ Reprovado</span>
+                        )}
+                        {post.status_cliente === 'aprovado' && post.status_interno === 'aprovacao_arte' && (
+                          <span className="badge bg-orange-100 text-orange-600 text-xs flex-shrink-0">✓ Aguard. arte</span>
+                        )}
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                           {/* Upload rápido de mídia */}
                           <label onClick={e => e.stopPropagation()} title="Adicionar mídia" className="cursor-pointer text-gray-300 hover:text-vinho transition-colors">
@@ -657,6 +677,11 @@ export default function KanbanPage() {
                           </div>
                         )}
                       </div>
+                      {post.status_cliente === 'reprovado' && post.etiqueta_cliente && ETIQUETA_LABELS[post.etiqueta_cliente] && (
+                        <div className="mt-1.5 flex items-center gap-1 text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1">
+                          <span>🏷</span> {ETIQUETA_LABELS[post.etiqueta_cliente]}
+                        </div>
+                      )}
 
                       <div className="mt-2 pt-2 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-all">
                         <div className="flex flex-wrap gap-1">
