@@ -40,6 +40,16 @@ export default function PostModal({ post, userId, userName, role = 'cliente', on
   const [erroComentario, setErroComentario] = useState('')
   const comentarioRef = useRef<HTMLInputElement>(null)
   const [userIdInterno, setUserIdInterno] = useState(userId)
+  const [modoEditar, setModoEditar] = useState(false)
+  const [formEdit, setFormEdit] = useState({
+    titulo: post.titulo || '',
+    copy: post.copy || '',
+    legenda: post.legenda || '',
+    direcionamento: post.direcionamento || '',
+    data_publicacao: post.data_publicacao || '',
+    tipo: post.tipo || 'feed',
+  })
+  const [salvandoEdit, setSalvandoEdit] = useState(false)
   const [userNameInterno, setUserNameInterno] = useState(userName)
 
   useEffect(() => {
@@ -60,6 +70,14 @@ export default function PostModal({ post, userId, userName, role = 'cliente', on
     }
     carregar()
   }, [post.id])
+
+  async function salvarEdicao() {
+    setSalvandoEdit(true)
+    await supabase.from('posts').update(formEdit).eq('id', post.id)
+    setSalvandoEdit(false)
+    setModoEditar(false)
+    onAtualizado()
+  }
 
   function selecionarEtiqueta(etiqueta: string) {
     if (etiqueta === 'aprovado') {
@@ -177,10 +195,62 @@ export default function PostModal({ post, userId, userName, role = 'cliente', on
                 )}
               </div>
             </div>
-            <button onClick={onClose} className="btn-ghost p-1.5 flex-shrink-0"><X size={18} /></button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {role === 'admin' && !modoEditar && (
+                <button onClick={() => setModoEditar(true)} className="btn-ghost p-1.5 text-xs flex items-center gap-1">
+                  ✏️ Editar
+                </button>
+              )}
+              {role === 'admin' && modoEditar && (
+                <button onClick={salvarEdicao} disabled={salvandoEdit} className="btn-primary py-1 px-3 text-xs">
+                  {salvandoEdit ? 'Salvando...' : '💾 Salvar'}
+                </button>
+              )}
+              {modoEditar && (
+                <button onClick={() => setModoEditar(false)} className="btn-ghost p-1.5 text-xs">Cancelar</button>
+              )}
+              <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
+            </div>
           </div>
 
           {/* Conteúdo */}
+          {modoEditar ? (
+            <div className="space-y-3">
+              <div>
+                <label className="label">Título</label>
+                <input className="input" value={formEdit.titulo} onChange={e => setFormEdit(f => ({...f, titulo: e.target.value}))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Tipo</label>
+                  <select className="input" value={formEdit.tipo} onChange={e => setFormEdit(f => ({...f, tipo: e.target.value}))}>
+                    <option value="reels">Reels</option>
+                    <option value="carrossel">Carrossel</option>
+                    <option value="feed">Feed</option>
+                    <option value="stories">Stories</option>
+                    <option value="tiktok">TikTok</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Data</label>
+                  <input className="input" type="date" value={formEdit.data_publicacao} onChange={e => setFormEdit(f => ({...f, data_publicacao: e.target.value}))} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Copy / Roteiro</label>
+                <textarea className="input resize-none" rows={4} value={formEdit.copy} onChange={e => setFormEdit(f => ({...f, copy: e.target.value}))} />
+              </div>
+              <div>
+                <label className="label">Legenda</label>
+                <textarea className="input resize-none" rows={3} value={formEdit.legenda} onChange={e => setFormEdit(f => ({...f, legenda: e.target.value}))} />
+              </div>
+              <div>
+                <label className="label">Direcionamento</label>
+                <textarea className="input resize-none" rows={2} value={formEdit.direcionamento} onChange={e => setFormEdit(f => ({...f, direcionamento: e.target.value}))} />
+              </div>
+            </div>
+          ) : (
+            <>
           {post.tema && <div><p className="label">Tema</p><p className="text-sm text-gray-700">{post.tema}</p></div>}
           {post.abordagem && <div><p className="label">Abordagem</p><p className="text-sm text-gray-600">{post.abordagem}</p></div>}
           {post.copy && (
@@ -196,6 +266,8 @@ export default function PostModal({ post, userId, userName, role = 'cliente', on
             </div>
           )}
           {post.direcionamento && <div><p className="label">Direcionamento</p><p className="text-sm text-gray-500 italic">{post.direcionamento}</p></div>}
+            </>
+          )}
 
           {/* Link externo */}
           {post.link_externo && (
