@@ -33,6 +33,7 @@ export const STATUS_POST_LABELS: Record<string, string> = {
   // Legados / compatibilidade
   briefing: 'Briefing',
   revisao_interna: 'Revisão Interna',
+  alteracao: 'Alteração Solicitada',
   reprovado: 'Reprovado',
   para_captar: 'Para Captar',
   captado: 'Captado',
@@ -54,6 +55,7 @@ export const STATUS_POST_CORES: Record<string, string> = {
   // Legados
   briefing: 'bg-gray-100 text-gray-600',
   revisao_interna: 'bg-yellow-100 text-yellow-700',
+  alteracao: 'bg-red-100 text-red-700',
   reprovado: 'bg-red-100 text-red-700',
   para_captar: 'bg-sky-100 text-sky-700',
   captado: 'bg-teal-100 text-teal-700',
