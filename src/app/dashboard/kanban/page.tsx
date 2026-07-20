@@ -8,7 +8,7 @@ import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, S
 
 const COLUNAS = [
   'copy', 'aguardando_cliente', 'design', 'captacao',
-  'edicao', 'aprovacao_arte', 'aprovado', 'publicado'
+  'edicao', 'aprovacao_arte', 'aprovado', 'publicado', 'alteracao'
 ] as const
 
 // Colunas especiais que não aparecem no board mas recebem posts
@@ -413,15 +413,19 @@ export default function KanbanPage() {
           if (!titulo) erros.push('título/tema obrigatório')
           if (!data) erros.push('data obrigatória')
 
+          const linksRaw = linha['links'] || linha['link'] || linha['midia'] || ''
+          const links = linksRaw.split(/[,;\n]+/).map((l: string) => l.trim()).filter((l: string) => l.startsWith('http'))
           return {
             titulo: titulo || `Post ${i + 1}`,
             tipo: normalizarTipo(linha['formato'] || ''),
             data_publicacao: data,
             tema: titulo,
+            abordagem: linha['abordagem'] || '',
             copy: linha['copy'] || linha['roteiro'] || '',
             legenda: linha['legenda'] || '',
             direcionamento: linha['direcionamento'] || '',
             hora: linha['hora'] || '',
+            links,
             ok: erros.length === 0,
             erro: erros.join(', '),
           }
