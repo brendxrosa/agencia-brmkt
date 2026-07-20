@@ -102,8 +102,7 @@ export default function CalendarioPage() {
   } : { posts: [], eventos: [] }
 
   function abrirPost(post: any) {
-    setItemDetalhes(post)
-    setTipoDetalhes('post')
+    setPostModalAberto(post)
   }
 
   function abrirEvento(evento: any) {
