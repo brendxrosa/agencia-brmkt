@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { type Cliente } from '@/types'
 import { formatCurrency, getInitials, cn, CORES_CLIENTES } from '@/lib/utils'
-import { Plus, Search, Users, MoreVertical, Instagram, Phone, Mail, X, FileText, Send } from 'lucide-react'
+import { Plus, Search, Users, MoreVertical, Instagram, Phone, Mail, X, FileText, Send, ExternalLink, MessageCircle, Folder, Pencil } from 'lucide-react'
 import ContratoUpload from '@/components/ContratoUpload'
 
 const SEGMENTOS = ['Saúde', 'Beleza', 'Moda', 'Esporte', 'Alimentação', 'Educação', 'Tecnologia', 'Imobiliário', 'Jurídico', 'Outro']
@@ -34,6 +34,8 @@ export default function ClientesPage() {
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [userId, setUserId] = useState('')
   const [enviandoDoc, setEnviandoDoc] = useState(false)
+  const [detalhe, setDetalhe] = useState<any>(null)
+  const [pagsDetalhe, setPagsDetalhe] = useState<any[]>([])
   const [formDoc, setFormDoc] = useState({ titulo: '', descricao: '', conteudo: '', link_arquivo: '' })
   const [form, setForm] = useState<Partial<Cliente & { data_inicio_contrato: string; data_fim_contrato: string; drive_url: string }>>({
     nome: '', email: '', telefone: '', instagram: '', empresa: '',
@@ -76,6 +78,7 @@ async function salvar(f: any) {
     forma_pagamento: (f as any).forma_pagamento || null,
     servicos_contratados: (f as any).servicos_contratados || null,
     drive_url: f.drive_url || null,
+    ...(f.briefing_url ? { briefing_url: f.briefing_url } : {}),
   }
 
   if (editando?.id) {
@@ -87,6 +90,17 @@ async function salvar(f: any) {
   setEditando(null)
   carregar()
 }
+
+  async function abrirDetalhe(c: any) {
+    setDetalhe(c)
+    setPagsDetalhe([])
+    const { data } = await supabase.from('pagamentos').select('*').eq('cliente_id', c.id).order('vencimento', { ascending: false }).limit(12)
+    setPagsDetalhe(data || [])
+  }
+  async function marcarPagoDetalhe(id: string) {
+    await supabase.from('pagamentos').update({ status: 'pago', data_pagamento: new Date().toISOString().split('T')[0] }).eq('id', id)
+    if (detalhe) abrirDetalhe(detalhe)
+  }
 
   async function excluir(id: string) {
     if (!confirm('Tem certeza que deseja excluir este cliente?')) return
@@ -178,8 +192,8 @@ async function salvar(f: any) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtrados.map(cliente => (
-            <div key={cliente.id} className="card-hover group relative">
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div key={cliente.id} onClick={() => abrirDetalhe(cliente)} className="card-hover group relative cursor-pointer">
+              <div className="absolute top-4 right-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                 <div className="relative">
                   <button className="btn-ghost p-1.5" onClick={e => {
                     e.stopPropagation()
@@ -241,6 +255,91 @@ async function salvar(f: any) {
           ))}
         </div>
       )}
+
+      {/* Detalhe do cliente */}
+      <Modal open={!!detalhe} onClose={() => setDetalhe(null)}>
+        {detalhe && (() => {
+          const d: any = detalhe
+          const tel = (d.telefone || '').replace(/\D/g, '')
+          const wa = tel ? 'https://wa.me/' + (tel.length <= 11 ? '55' + tel : tel) : ''
+          const ig = d.instagram ? 'https://instagram.com/' + String(d.instagram).replace('@', '') : ''
+          const dias = d.data_fim_contrato ? Math.ceil((new Date(d.data_fim_contrato).getTime() - Date.now()) / 86400000) : null
+          const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bahia' })
+          const stat = (p: any) => (p.status === 'pendente' && String(p.vencimento).slice(0, 10) < hojeStr) ? 'atrasado' : p.status
+          const corStat: Record<string, string> = { pago: 'bg-emerald-100 text-emerald-700', pendente: 'bg-orange-100 text-orange-700', atrasado: 'bg-red-100 text-red-700', cancelado: 'bg-gray-100 text-gray-600' }
+          const Btn = ({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-creme hover:bg-rosa-pale text-sm text-gray-700 transition-colors">{icon}{children}</a>
+          )
+          return (
+            <div className="p-6 space-y-5">
+              <div className="flex items-start gap-3">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-display font-bold text-xl flex-shrink-0" style={{ backgroundColor: d.cor }}>{getInitials(d.nome)}</div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-display text-xl font-semibold text-gray-800 truncate">{d.nome}</h2>
+                  <p className="text-xs text-gray-400 truncate">{[d.empresa, d.segmento, d.plano].filter(Boolean).join(' · ')}</p>
+                  <span className={cn('badge text-xs mt-1 inline-block', { 'bg-emerald-100 text-emerald-700': d.status === 'ativo', 'bg-yellow-100 text-yellow-700': d.status === 'pausado', 'bg-red-100 text-red-700': d.status === 'encerrado' })}>{d.status}</span>
+                </div>
+                <button onClick={() => { const c = d; setDetalhe(null); abrirEditar(c) }} className="btn-secondary flex items-center gap-1.5 text-sm"><Pencil size={14} /> Editar</button>
+                <button onClick={() => setDetalhe(null)} className="btn-ghost p-2"><X size={18} /></button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {wa && <Btn href={wa} icon={<MessageCircle size={14} />}>WhatsApp</Btn>}
+                {d.email && <Btn href={'mailto:' + d.email} icon={<Mail size={14} />}>E-mail</Btn>}
+                {ig && <Btn href={ig} icon={<Instagram size={14} />}>Instagram</Btn>}
+                {d.drive_url && <Btn href={d.drive_url} icon={<Folder size={14} />}>Drive</Btn>}
+                {d.briefing_url && <Btn href={d.briefing_url} icon={<FileText size={14} />}>Briefing</Btn>}
+                {d.contrato_url && <Btn href={d.contrato_url} icon={<FileText size={14} />}>Contrato</Btn>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-creme/60 rounded-xl p-3"><p className="text-xs text-gray-400">Mensalidade</p><p className="font-semibold text-vinho">{formatCurrency(d.valor_mensal || 0)}</p><p className="text-xs text-gray-400">vence dia {d.dia_vencimento || 10}{d.forma_pagamento ? ' · ' + d.forma_pagamento : ''}</p></div>
+                <div className="bg-creme/60 rounded-xl p-3"><p className="text-xs text-gray-400">Contrato</p>
+                  <p className="font-semibold text-gray-800">{d.data_fim_contrato ? 'até ' + new Date(d.data_fim_contrato).toLocaleDateString('pt-BR') : 'sem data'}</p>
+                  {dias !== null && <p className={cn('text-xs', dias <= 30 ? 'text-orange-600' : 'text-gray-400')}>{dias >= 0 ? dias + ' dia(s) restantes' : 'venceu'}</p>}
+                  {!d.contrato_url && <p className="text-xs text-gray-400">contrato não anexado (edite o cliente pra enviar)</p>}
+                </div>
+              </div>
+
+              {d.servicos_contratados && (
+                <div><p className="label">Serviços contratados</p>
+                  <div className="flex flex-wrap gap-1.5">{String(d.servicos_contratados).split(',').map((x: string) => <span key={x} className="badge bg-creme text-gray-600 text-xs">{x.trim()}</span>)}</div></div>
+              )}
+
+              <div>
+                <p className="label">Pagamentos</p>
+                {pagsDetalhe.length === 0 ? <p className="text-sm text-gray-400">Nenhum lançamento ainda.</p> : (
+                  <div className="space-y-1.5">
+                    {pagsDetalhe.map(p => (
+                      <div key={p.id} className="flex items-center gap-2 text-sm bg-white border border-gray-100 rounded-xl px-3 py-2">
+                        <span className="flex-1 truncate text-gray-700">{p.mes_referencia || new Date(p.vencimento).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-gray-800 font-medium">{formatCurrency(p.valor)}</span>
+                        <span className={cn('badge text-xs', corStat[stat(p)])}>{stat(p)}</span>
+                        {p.status !== 'pago' && <button onClick={() => marcarPagoDetalhe(p.id)} className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg hover:bg-emerald-100">Pago ✓</button>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <a href="/dashboard/financeiro" className="text-xs text-vinho underline mt-2 inline-block">Abrir Financeiro</a>
+              </div>
+
+              {(d.persona || d.tom_de_voz || d.objetivo || d.observacoes) && (
+                <div className="space-y-2 text-sm text-gray-600">
+                  {d.persona && <p><span className="font-medium text-gray-800">Persona:</span> {d.persona}</p>}
+                  {d.tom_de_voz && <p><span className="font-medium text-gray-800">Tom de voz:</span> {d.tom_de_voz}</p>}
+                  {d.objetivo && <p><span className="font-medium text-gray-800">Objetivo:</span> {d.objetivo}</p>}
+                  {d.observacoes && <p><span className="font-medium text-gray-800">Obs.:</span> {d.observacoes}</p>}
+                </div>
+              )}
+
+              <div className="flex gap-2 flex-wrap pt-1 border-t border-gray-100">
+                <a href="/dashboard/kanban" className="btn-secondary text-sm flex items-center gap-1.5 mt-3"><ExternalLink size={13} /> Kanban</a>
+                <a href="/dashboard/docs" className="btn-secondary text-sm flex items-center gap-1.5 mt-3"><ExternalLink size={13} /> Docs</a>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
 
       {/* Modal cliente */}
       <Modal open={modalAberto} onClose={() => { setModalAberto(false); setEditando(null) }}>
@@ -363,6 +462,9 @@ async function salvar(f: any) {
 
             {/* Drive */}
             <div><label className="label">Link do Google Drive</label><input className="input" value={(form as any).drive_url || ''} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))} placeholder="https://drive.google.com/..." /></div>
+
+            <div><label className="label">Link do briefing</label>
+              <input className="input" value={(form as any).briefing_url || ''} onChange={e => setForm(f => ({ ...f, briefing_url: e.target.value }))} placeholder="Link do Google Docs / Forms do briefing" /></div>
 
             <div>
               <label className="label">Status</label>
