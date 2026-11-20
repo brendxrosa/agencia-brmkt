@@ -59,6 +59,8 @@ export default async function DashboardPage() {
     { data: pagamentos },
     { data: eventos },
     { data: docs },
+    { data: rotinas },
+    { data: recebidos },
   ] = await Promise.all([
     supabase.from('posts').select('id, titulo, tipo, data_publicacao, status_interno, status_cliente, clientes(nome, cor)')
       .not('data_publicacao', 'is', null).lte('data_publicacao', daqui7),
@@ -66,9 +68,12 @@ export default async function DashboardPage() {
     supabase.from('pagamentos').select('id, valor, vencimento, status, clientes(nome, cor)')
       .in('status', ['pendente', 'atrasado']).order('vencimento'),
     supabase.from('eventos').select('id, titulo, data_inicio, dia_todo')
-      .gte('data_inicio', hoje + 'T00:00:00-03:00').lte('data_inicio', hoje + 'T23:59:59-03:00').order('data_inicio'),
+      .gte('data_inicio', hoje + 'T00:00:00-03:00').lte('data_inicio', daqui7 + 'T23:59:59-03:00').order('data_inicio'),
     supabase.from('docs').select('id, titulo, status_aprovacao, cliente_id, updated_at, clientes(nome, cor)')
       .in('status_aprovacao', ['rascunho', 'aguardando', 'reprovado']),
+    supabase.from('rotinas_mensais').select('rotina, mes, valor, nf_gerada, nf_enviada, pago'),
+    supabase.from('pagamentos').select('id, valor, data_pagamento, clientes(nome, cor)')
+      .eq('status', 'pago').gte('data_pagamento', format(addDays(parseISO(hoje), -7), 'yyyy-MM-dd')).order('data_pagamento', { ascending: false }),
   ])
 
   const abertos = (posts || []).filter((p: any) => !FINALIZADOS.includes(p.status_interno))
@@ -121,13 +126,50 @@ export default async function DashboardPage() {
     direita: formatCurrency(p.valor) + (p.status === 'atrasado' ? ' · atrasado' : ''),
   }))
 
-  const agendaHoje: Item[] = (eventos || []).map((e: any) => ({
+  const ym = hoje.slice(0, 7)
+  const diaMes = Number(hoje.slice(8))
+  const nibsRow: any = (rotinas || []).find((r: any) => r.rotina === 'nibs' && r.mes === ym) || {}
+  const dasRow: any = (rotinas || []).find((r: any) => r.rotina === 'das' && r.mes === ym) || {}
+  function quinzeUtil() {
+    const [a, m] = ym.split('-').map(Number)
+    let c = 0
+    for (let d = 1; d <= 31; d++) {
+      const dt = new Date(a, m - 1, d)
+      if (dt.getMonth() !== m - 1) break
+      const w = dt.getDay()
+      if (w !== 0 && w !== 6) { c++; if (c === 15) return ym + '-' + String(d).padStart(2, '0') }
+    }
+    return ym + '-28'
+  }
+  const limitePag = quinzeUtil()
+  const impostos: Item[] = []
+  const linkFin = '/dashboard/financeiro'
+  if (!nibsRow.pago) {
+    if (!nibsRow.nf_gerada && diaMes >= 11) impostos.push({ key: 'n1', href: linkFin, esquerda: 'NIBS', titulo: 'Gerar a nota da NIBS', direita: diaMes > 15 ? 'passou do dia 15' : 'dias 11 e 12' })
+    else if (nibsRow.nf_gerada && !nibsRow.nf_enviada) impostos.push({ key: 'n2', href: linkFin, esquerda: 'NIBS', titulo: 'Enviar a nota da NIBS', direita: diaMes > 15 ? 'passou do dia 15' : 'antes do dia 15' })
+    else if (nibsRow.nf_enviada) impostos.push({ key: 'n3', href: linkFin, esquerda: 'NIBS', titulo: hoje > limitePag ? 'NIBS ainda não pagou' : 'Aguardando pagamento da NIBS', direita: 'até ' + formatDate(limitePag, 'dd/MM') })
+  }
+  if (!dasRow.pago && diaMes >= 10) impostos.push({ key: 'das', href: linkFin, esquerda: 'DAS', titulo: 'DAS do MEI', direita: diaMes > 20 ? 'venceu dia 20' : 'vence dia 20' })
+
+  const recebidosItens: Item[] = (recebidos || []).map((p: any) => ({
+    key: 'rc' + p.id, href: linkFin, ponto: p.clientes?.cor,
+    esquerda: formatDate(p.data_pagamento, 'dd/MM'), titulo: (p.clientes?.nome || 'Cliente') + ' pagou', direita: formatCurrency(p.valor),
+  }))
+  if (nibsRow.pago) recebidosItens.unshift({ key: 'rcn', href: linkFin, esquerda: 'NIBS', titulo: 'NIBS pagou este mês', direita: formatCurrency(Number(nibsRow.valor || 0)) })
+
+  const proximosEventos: Item[] = (eventos || []).filter((e: any) => String(e.data_inicio).slice(0, 10) !== hoje).map((e: any) => ({
+    key: 'pe' + e.id, href: '/dashboard/minha-agenda',
+    esquerda: new Date(e.data_inicio).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Bahia' }),
+    titulo: e.titulo,
+  }))
+
+  const agendaHoje: Item[] = (eventos || []).filter((e: any) => new Date(e.data_inicio).toLocaleDateString('en-CA', { timeZone: 'America/Bahia' }) === hoje).map((e: any) => ({
     key: e.id, href: '/dashboard/minha-agenda',
     esquerda: e.dia_todo ? 'dia todo' : new Date(e.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bahia' }),
     titulo: e.titulo,
   }))
 
-  const urgentes = atrasados.length + paraHojeAmanha.length + alteracoes.length + cobrancas.length
+  const urgentes = atrasados.length + paraHojeAmanha.length + alteracoes.length + cobrancas.length + impostos.length
   const total = urgentes + deveRetorno.length + paraEnviar.length + prontosPublicar.length + contratos.length
   const hora = Number(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', hour12: false, timeZone: 'America/Bahia' }))
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -154,9 +196,12 @@ export default async function DashboardPage() {
       <Secao titulo="Hoje e amanhã: ainda não está pronto" cor="border-l-orange-500" icon={Clock} itens={paraHojeAmanha} />
       <Secao titulo="Cliente pediu ajuste ou reprovou" cor="border-l-rose-400" icon={RefreshCcw} itens={alteracoes} />
       <Secao titulo="Cobranças (até 5 dias ou atrasadas)" cor="border-l-emerald-600" icon={DollarSign} itens={cobrancas} />
+      <Secao titulo="Nota da NIBS e DAS" cor="border-l-amber-500" icon={FileText} itens={impostos} />
       <Secao titulo="Na sua agenda hoje" cor="border-l-blue-400" icon={CalendarDays} itens={agendaHoje} />
 
       <p className="text-xs font-medium text-gray-400 uppercase tracking-wide pt-2">Pra acompanhar</p>
+      <Secao titulo="Pagamentos recebidos (últimos 7 dias)" cor="border-l-emerald-500" icon={CheckCircle2} itens={recebidosItens} aberta={false} />
+      <Secao titulo="Próximos eventos (7 dias)" cor="border-l-blue-300" icon={CalendarDays} itens={proximosEventos} aberta={false} />
       <Secao titulo="Você precisa enviar" cor="border-l-vinho" icon={Send} itens={paraEnviar} aberta={false}
         dica="Copys do Kanban que ainda não foram pro cliente e documentos em rascunho." />
       <Secao titulo="Quem te deve retorno" cor="border-l-yellow-400" icon={Hourglass} itens={deveRetorno} aberta={false}
