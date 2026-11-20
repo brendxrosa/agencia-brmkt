@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, X, Search, FileText, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle, LayoutGrid, List, Archive, ArchiveRestore } from 'lucide-react'
+import { Plus, X, Search, FileText, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle, LayoutGrid, List, Archive, ArchiveRestore, Folder, ChevronRight } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -152,7 +152,8 @@ export default function DocsPage() {
   const [tiposCustom, setTiposCustom] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
-  const [vistaGrade, setVistaGrade] = useState(false)
+  const [vistaGrade, setVistaGrade] = useState(true)
+  const [pasta, setPasta] = useState<string | null>(null)
   const [mostrarArquivados, setMostrarArquivados] = useState(false)
   const [filtroCliente, setFiltroCliente] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
@@ -312,7 +313,8 @@ export default function DocsPage() {
     const clienteOk = filtroCliente === 'todos' || d.cliente_id === filtroCliente
     const tipoOk = filtroTipo === 'todos' || d.tipo === filtroTipo
     const statusOk = filtroStatus === 'todos' ? (mostrarArquivados || d.status_aprovacao !== 'arquivado') : d.status_aprovacao === filtroStatus
-    return buscaOk && clienteOk && tipoOk && statusOk
+    const pastaOk = pasta === null || (pasta === '__sem' ? !d.cliente_id : d.cliente_id === pasta)
+    return buscaOk && clienteOk && tipoOk && statusOk && pastaOk
   })
 
   const aguardando = docs.filter(d => d.status_aprovacao === 'aguardando').length
@@ -338,7 +340,7 @@ export default function DocsPage() {
           <button onClick={() => setModalTipos(true)} className="btn-secondary flex items-center gap-2 text-sm">
             <Settings size={15} /> Tipos
           </button>
-          <button onClick={() => { setEditando(null); setForm({ cliente_id: '', titulo: '', tipo: 'nota', conteudo: '', link_arquivo: '', drive_url: '', status_aprovacao: 'rascunho', visivel_cliente: false }); setModalAberto(true) }}
+          <button onClick={() => { setEditando(null); setForm({ cliente_id: (pasta && pasta !== '__sem' ? pasta : ''), titulo: '', tipo: 'nota', conteudo: '', link_arquivo: '', drive_url: '', status_aprovacao: 'rascunho', visivel_cliente: false }); setModalAberto(true) }}
             className="btn-primary flex items-center gap-2">
             <Plus size={16} /> Novo
           </button>
@@ -382,13 +384,53 @@ export default function DocsPage() {
         </div>
       </div>
 
+      {pasta !== null && (
+        <div className="flex items-center gap-1 text-sm text-gray-500">
+          <button onClick={() => setPasta(null)} className="hover:text-vinho font-medium">Docs</button>
+          <ChevronRight size={14} />
+          <span className="text-gray-800 font-semibold">{pasta === '__sem' ? 'Sem cliente' : (clientes.find(c => c.id === pasta)?.nome || 'Pasta')}</span>
+        </div>
+      )}
+
+      {!loading && pasta === null && !busca && (
+        <div>
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Pastas</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {clientes.map(c => {
+              const n = docs.filter(d => d.cliente_id === c.id && d.status_aprovacao !== 'arquivado').length
+              const pend = docs.filter(d => d.cliente_id === c.id && ['aguardando', 'reprovado'].includes(d.status_aprovacao)).length
+              return (
+                <button key={c.id} onClick={() => setPasta(c.id)}
+                  className="card !p-4 flex items-center gap-3 text-left hover:shadow-card-hover transition-all">
+                  <Folder size={28} style={{ color: c.cor || '#6B0F2A' }} fill="currentColor" className="flex-shrink-0 opacity-80" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{c.nome}</p>
+                    <p className="text-xs text-gray-400">{n} arquivo(s)</p>
+                  </div>
+                  {pend > 0 && <span className="w-2.5 h-2.5 rounded-full bg-orange-400 flex-shrink-0" title="Tem coisa pendente" />}
+                </button>
+              )
+            })}
+            <button onClick={() => setPasta('__sem')}
+              className="card !p-4 flex items-center gap-3 text-left hover:shadow-card-hover transition-all">
+              <Folder size={28} className="text-gray-300 flex-shrink-0" fill="currentColor" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-800">Sem cliente</p>
+                <p className="text-xs text-gray-400">{docs.filter(d => !d.cliente_id && d.status_aprovacao !== 'arquivado').length} arquivo(s)</p>
+              </div>
+            </button>
+          </div>
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mt-6 -mb-3">Recentes</p>
+        </div>
+      )}
+
       {loading ? (
         <div className={vistaGrade ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-2'}>{[1,2,3].map(i => <div key={i} className={cn('card animate-pulse bg-creme', vistaGrade ? 'h-32' : 'h-14')} />)}</div>
       ) : filtrados.length === 0 ? (
         <div className="card text-center py-16"><FileText size={40} className="mx-auto mb-3 text-gray-300" /><p className="text-gray-500">Nenhum documento encontrado</p></div>
       ) : (
         <div className={vistaGrade ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-2'}>
-          {filtrados.map(doc => {
+          {(pasta === null && !busca ? filtrados.slice(0, 8) : filtrados).map(doc => {
             const statusConfig = STATUS_APROVACAO[doc.status_aprovacao || 'rascunho']
             return (
               <div key={doc.id} className={cn("card group", !vistaGrade && "flex items-center gap-3 !py-3")}>
