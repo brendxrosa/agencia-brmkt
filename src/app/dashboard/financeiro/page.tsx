@@ -35,6 +35,7 @@ export default function FinanceiroPage() {
   const [mesSel, setMesSel] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bahia' }).slice(0, 7))
   const [nibs, setNibs] = useState<any[]>([])
   const [das, setDas] = useState<any[]>([])
+  const [nibsAberto, setNibsAberto] = useState(false)
   const [form, setForm] = useState({
     cliente_id: '', valor: '', mes_referencia: '',
     vencimento: '', status: 'pendente' as Pagamento['status'], observacoes: ''
@@ -212,8 +213,15 @@ export default function FinanceiroPage() {
   function reciboPag(pag: any) {
     const w = window.open('', '_blank')
     if (!w) return alert('O navegador bloqueou a janela. Libere pop-ups para este site.')
-    const corpo = textoRecibo(pag)
-    w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap"><style>body{margin:0;background:#F1E6D2;color:#5A1A2B;font-family:Bricolage Grotesque,sans-serif}.p{max-width:680px;margin:40px auto;background:#FBF6EC;padding:48px;border:1px solid rgba(90,26,43,.2)}h1{font-family:Instrument Serif,serif;font-style:italic;font-weight:400;font-size:64px;margin:0 0 4px;letter-spacing:-.04em}.v{font-size:34px;font-weight:600;margin:28px 0}p{font-size:17px;line-height:1.6}.a{margin-top:60px;font-family:Instrument Serif,serif;font-style:italic;font-size:26px;border-top:1px solid #5A1A2B;padding-top:8px;width:60%}small{opacity:.7}@media print{body{background:#fff}.p{border:0;margin:0}.n{display:none}}</style></head><body><div class="p"><small>BRENDA ROSA MARKETING · ESTRATÉGIA &amp; IMAGEM</small><h1>Recibo</h1><div class="v">' + formatCurrency(pag.valor) + '</div><p>' + corpo + '</p><div class="a">Brenda Rosa<br><small style="font-family:Bricolage Grotesque,sans-serif;font-style:normal;font-size:13px">Brenda Rosa Marketing</small></div><p class="n" style="margin-top:40px"><button onclick="window.print()" style="background:#5A1A2B;color:#F1E6D2;border:0;padding:10px 18px;border-radius:10px;font-size:15px;cursor:pointer">Imprimir / salvar em PDF</button></p></div></body></html>')
+    const nomeC = pag.clientes?.nome || 'Cliente'
+    const ref = pag.mes_referencia || 'Serviços prestados'
+    const pagoEm = formatDate(pag.data_pagamento || pag.vencimento)
+    const num = String(pag.id || '').slice(0, 6).toUpperCase()
+    const logo = '<svg viewBox="0 0 533 133" width="300" aria-label="Brenda Rosa Marketing" style="display:block;overflow:visible"><text x="266" y="62" text-anchor="middle" font-family="Instrument Serif, serif" font-size="78" letter-spacing="-2.8" fill="#5A1A2B">BRENDA ROSA</text><circle cx="68" cy="101" r="4.5" fill="#D4F25A" stroke="#5A1A2B" stroke-width="1.5"/><text x="80" y="106" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="600" letter-spacing="4" fill="#5A1A2B">ESTRATÉGIA &amp; IMAGEM</text><g transform="rotate(-5 347 93)" font-family="Herr Von Muellerhoff, cursive" font-size="49" stroke-linejoin="round"><text x="347" y="93" fill="#5A1A2B" stroke="#5A1A2B" stroke-width="9">marketing</text><text x="347" y="93" fill="#F1E6D2" stroke="#F1E6D2" stroke-width="7">marketing</text><text x="347" y="93" fill="#5A1A2B">marketing</text></g></svg>'
+    const linha = function (k: string, val: string) { return '<div class="l"><span>' + k + '</span><b>' + val + '</b></div>' }
+    const css = '@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#F1E6D2;color:#5A1A2B;font-family:Bricolage Grotesque,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pg{width:794px;min-height:1000px;margin:0 auto;padding:56px 64px 110px;position:relative}.cab{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #5A1A2B;padding-bottom:22px}.no{font-size:12px;letter-spacing:.18em;text-align:right;line-height:1.7}h1{font-family:Instrument Serif,serif;font-weight:400;font-size:84px;line-height:.95;letter-spacing:-.04em;margin:56px 0 36px}h1 i{font-style:italic}.l{display:flex;justify-content:space-between;gap:24px;padding:16px 0;border-bottom:1px solid rgba(90,26,43,.25);font-size:16px}.l span{font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.7;padding-top:3px}.l b{font-weight:600;text-align:right}.v{font-family:Instrument Serif,serif;font-size:64px;letter-spacing:-.03em;margin:34px 0 10px}.t{font-size:16px;line-height:1.6;max-width:560px}.a{margin-top:70px;width:260px;border-top:1px solid #5A1A2B;padding-top:8px;font-family:Instrument Serif,serif;font-style:italic;font-size:26px}.a small{display:block;font-family:Bricolage Grotesque,sans-serif;font-style:normal;font-size:12px;letter-spacing:.12em;opacity:.7}.rod{position:absolute;left:64px;right:64px;bottom:36px;display:flex;justify-content:space-between;font-size:12px;letter-spacing:.08em;border-top:1px solid rgba(90,26,43,.3);padding-top:12px}.bt{position:fixed;right:16px;top:16px}.bt button{background:#5A1A2B;color:#F1E6D2;border:0;padding:10px 18px;border-radius:10px;font-size:15px;cursor:pointer}@media print{.bt{display:none}}'
+    const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo ' + num + '</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600&family=Instrument+Serif:ital@0;1&family=Herr+Von+Muellerhoff&display=swap"><style>' + css + '</style></head><body><div class="bt"><button onclick="window.print()">Imprimir / salvar em PDF</button></div><div class="pg"><div class="cab">' + logo + '<div class="no">RECIBO Nº ' + num + '<br>' + pagoEm + '</div></div><h1>Recibo de<br><i>pagamento</i></h1>' + linha('Recebido de', nomeC) + linha('Referente a', ref) + linha('Data do pagamento', pagoEm) + '<div class="v">' + formatCurrency(pag.valor) + '</div><p class="t">Recebi de ' + nomeC + ' a quantia acima, referente a ' + ref + '. Dou plena quitação.</p><div class="a">Brenda Rosa<small>BRENDA ROSA MARKETING</small></div><div class="rod"><span>@brendarosa.mkt</span><span>Estratégia &amp; Imagem</span></div></div></body></html>'
+    w.document.write(html)
     w.document.close()
   }
   function emailRecibo(pag: any) {
@@ -312,11 +320,15 @@ export default function FinanceiroPage() {
             <p className="text-xs text-gray-500">Só pra você: emitir a nota (dias 11 e 12), enviar antes do dia 15 e acompanhar o pagamento (até o 15º dia útil).</p>
           </div>
           <div className="flex gap-2">
+            <button onClick={() => setNibsAberto(a => !a)} className="btn-secondary text-sm">{nibsAberto ? 'Recolher' : 'Ver meses'}</button>
             {contratoNibs && <a href={contratoNibs} target="_blank" rel="noreferrer" className="btn-secondary text-sm">Abrir contrato</a>}
             <button onClick={definirContratoNibs} className="btn-ghost text-sm">{contratoNibs ? 'Trocar link do contrato' : 'Colocar link do contrato'}</button>
           </div>
         </div>
-        <div className="space-y-2">
+        {!nibsAberto && (
+          <p className="text-sm text-gray-600">{MESES[Number(ymHoje.slice(5)) - 1]}: {dicaNibs(ymHoje)} · DAS {dasPago(ymHoje) ? 'pago ✓' : 'em aberto'}</p>
+        )}
+        <div className={nibsAberto ? 'space-y-2' : 'hidden'}>
           {mesesNibs.map((ym, i) => {
             const r: any = rowNibs(ym)
             const [a, m] = ym.split('-').map(Number)
@@ -344,7 +356,7 @@ export default function FinanceiroPage() {
             )
           })}
         </div>
-        <div className="flex items-center gap-3 flex-wrap rounded-xl px-3 py-2 border-t border-vinho/10">
+        <div className={cn('flex items-center gap-3 flex-wrap rounded-xl px-3 py-2 border-t border-vinho/10', !nibsAberto && 'hidden')}>
           <div className="w-28"><p className="font-semibold text-sm text-vinho">DAS do MEI</p><p className="text-xs text-gray-500">vence dia 20</p></div>
           <button onClick={() => alternarDas(ymHoje)}
             className={cn('text-xs px-2.5 py-1.5 rounded-full border transition-all', dasPago(ymHoje) ? 'bg-lima text-vinho border-vinho/30 font-semibold' : 'bg-papel text-gray-500 border-vinho/15 hover:bg-rosa-pale')}>
