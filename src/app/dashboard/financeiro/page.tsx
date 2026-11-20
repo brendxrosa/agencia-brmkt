@@ -45,7 +45,7 @@ export default function FinanceiroPage() {
     }
     const [{ data: p }, { data: c }] = await Promise.all([
       supabase.from('pagamentos').select('*, clientes(nome, cor, id)').order('vencimento', { ascending: false }),
-      supabase.from('clientes').select('id, nome, valor_mensal').eq('status', 'ativo').order('nome')
+      supabase.from('clientes').select('id, nome, valor_mensal, dia_vencimento').eq('status', 'ativo').order('nome')
     ])
     setPagamentos(p || [])
     setClientes(c || [])
@@ -100,24 +100,39 @@ export default function FinanceiroPage() {
     alert(`Cobrança enviada para ${pagamento.clientes.nome} via chat! ✅`)
   }
 
-  async function gerarPagamentosMes() {
-    const hoje = new Date()
-    const mes = `${MESES[hoje.getMonth()]} ${hoje.getFullYear()}`
-    const promessas = clientes.map(c =>
-      supabase.from('pagamentos').insert({
-        cliente_id: c.id, valor: c.valor_mensal, mes_referencia: mes,
-        vencimento: new Date(hoje.getFullYear(), hoje.getMonth(), 10).toISOString().split('T')[0],
-        status: 'pendente',
-      })
-    )
-    await Promise.all(promessas)
-    carregar()
-    alert(`${clientes.length} pagamento(s) gerado(s) para ${mes}!`)
+  function chaveMes() { const h = new Date(); return MESES[h.getMonth()] + ' ' + h.getFullYear() }
+  function faltandoMes() {
+    const mes = chaveMes()
+    return clientes.filter(c => (c.valor_mensal || 0) > 0 && !pagamentos.some(p => p.cliente_id === c.id && p.mes_referencia === mes))
   }
 
-  const filtrados = filtroStatus === 'todos' ? pagamentos : pagamentos.filter(p => p.status === filtroStatus)
-  const totalPendente = pagamentos.filter(p => p.status === 'pendente').reduce((s, p) => s + (p.valor || 0), 0)
-  const totalAtrasado = pagamentos.filter(p => p.status === 'atrasado').reduce((s, p) => s + (p.valor || 0), 0)
+  async function gerarPagamentosMes() {
+    const hoje = new Date()
+    const mes = chaveMes()
+    const novos = faltandoMes()
+    if (novos.length === 0) return alert('Todas as mensalidades de ' + mes + ' já existem.')
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const linhas = novos.map(c => ({
+      cliente_id: c.id, valor: c.valor_mensal, mes_referencia: mes,
+      vencimento: hoje.getFullYear() + '-' + pad(hoje.getMonth() + 1) + '-' + pad(Math.min(c.dia_vencimento || 10, 28)),
+      status: 'pendente',
+    }))
+    await supabase.from('pagamentos').insert(linhas)
+    await carregar()
+    alert(novos.length + ' mensalidade(s) criada(s) para ' + mes + ', já com o vencimento de cada contrato.')
+  }
+
+  async function copiarCobranca(pag: any) {
+    const msg = 'Oi, ' + (pag.clientes?.nome || '') + '! Tudo bem? Passando pra lembrar da mensalidade de ' + (pag.mes_referencia || 'este mês') + ', no valor de ' + formatCurrency(pag.valor) + ', com vencimento em ' + formatDate(pag.vencimento) + '. Qualquer dúvida é só me chamar!'
+    try { await navigator.clipboard.writeText(msg); alert('Mensagem copiada. É só colar no WhatsApp.') }
+    catch { window.prompt('Copie a mensagem:', msg) }
+  }
+
+  const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bahia' })
+  const efetivo = (p: any) => (p.status === 'pendente' && p.vencimento && String(p.vencimento).slice(0, 10) < hojeStr) ? 'atrasado' : p.status
+  const filtrados = filtroStatus === 'todos' ? pagamentos : pagamentos.filter(p => efetivo(p) === filtroStatus)
+  const totalPendente = pagamentos.filter(p => efetivo(p) === 'pendente').reduce((s, p) => s + (p.valor || 0), 0)
+  const totalAtrasado = pagamentos.filter(p => efetivo(p) === 'atrasado').reduce((s, p) => s + (p.valor || 0), 0)
   const totalPago = pagamentos.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valor || 0), 0)
 
   const STATUS_CONFIG: Record<string, { label: string; cor: string; icon: any }> = {
@@ -158,6 +173,15 @@ export default function FinanceiroPage() {
         ))}
       </div>
 
+      {!loading && faltandoMes().length > 0 && (
+        <div className="card flex items-center gap-3 border-l-4 border-l-vinho flex-wrap">
+          <p className="text-sm text-gray-700 flex-1 min-w-48">
+            {faltandoMes().length} cliente(s) ainda sem a mensalidade de {chaveMes()}: {faltandoMes().map(c => c.nome).join(', ')}.
+          </p>
+          <button onClick={gerarPagamentosMes} className="btn-primary text-sm">Gerar agora</button>
+        </div>
+      )}
+
       {/* Filtros */}
       <div className="flex gap-1 bg-creme rounded-xl p-1 w-fit">
         {[['todos','Todos'],['pendente','Pendentes'],['atrasado','Atrasados'],['pago','Pagos']].map(([v,l]) => (
@@ -179,7 +203,7 @@ export default function FinanceiroPage() {
       ) : (
         <div className="space-y-3">
           {filtrados.map(pag => {
-            const config = STATUS_CONFIG[pag.status] || STATUS_CONFIG.pendente
+            const config = STATUS_CONFIG[efetivo(pag)] || STATUS_CONFIG.pendente
             const Icon = config.icon
             return (
               <div key={pag.id} className="card flex items-center gap-4 group">
@@ -201,7 +225,13 @@ export default function FinanceiroPage() {
                   </p>
                 </div>
                 <p className="font-bold text-gray-800 flex-shrink-0">{formatCurrency(pag.valor)}</p>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                <div className="flex gap-1 items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                  {pag.status !== 'pago' && (
+                    <button onClick={() => copiarCobranca(pag)}
+                      className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">
+                      Copiar cobrança
+                    </button>
+                  )}
                   {pag.status !== 'pago' && (
                     <button onClick={() => marcarPago(pag.id)}
                       className="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-xl hover:bg-emerald-100 transition-all">
