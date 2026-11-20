@@ -320,6 +320,12 @@ export default function DocsPage() {
   const aguardando = docs.filter(d => d.status_aprovacao === 'aguardando').length
   const reprovados = docs.filter(d => d.status_aprovacao === 'reprovado').length
   const arquivados = docs.filter(d => d.status_aprovacao === 'arquivado').length
+  const pastasLista: any[] = [
+    ...clientes,
+    ...docs.filter(d => d.cliente_id && !clientes.some(c => c.id === d.cliente_id))
+      .map(d => ({ id: d.cliente_id, nome: d.clientes?.nome || 'Cliente', cor: d.clientes?.cor }))
+      .filter((v, i, a) => a.findIndex(x => x.id === v.id) === i),
+  ]
 
   return (
     <div className="space-y-6">
@@ -388,7 +394,7 @@ export default function DocsPage() {
         <div className="flex items-center gap-1 text-sm text-gray-500">
           <button onClick={() => setPasta(null)} className="hover:text-vinho font-medium">Docs</button>
           <ChevronRight size={14} />
-          <span className="text-gray-800 font-semibold">{pasta === '__sem' ? 'Sem cliente' : (clientes.find(c => c.id === pasta)?.nome || 'Pasta')}</span>
+          <span className="text-gray-800 font-semibold">{pasta === '__sem' ? 'Sem cliente' : (pastasLista.find(c => c.id === pasta)?.nome || 'Pasta')}</span>
         </div>
       )}
 
@@ -396,7 +402,7 @@ export default function DocsPage() {
         <div>
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Pastas</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {clientes.map(c => {
+            {pastasLista.map(c => {
               const n = docs.filter(d => d.cliente_id === c.id && d.status_aprovacao !== 'arquivado').length
               const pend = docs.filter(d => d.cliente_id === c.id && ['aguardando', 'reprovado'].includes(d.status_aprovacao)).length
               return (
