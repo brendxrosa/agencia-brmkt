@@ -265,6 +265,10 @@ export default function KanbanPage() {
   const [uploadandoForm, setUploadandoForm] = useState(false)
   const [userId, setUserId] = useState('')
   const [userName, setUserName] = useState('')
+  const [modoSelecao, setModoSelecao] = useState(false)
+  const [selecionados, setSelecionados] = useState<string[]>([])
+  const [modalLote, setModalLote] = useState(false)
+  const [lote, setLote] = useState({ cliente_id: '', data_publicacao: '', tipo: '' })
 
   // Estado do modal de importação
   const [importCliente, setImportCliente] = useState('')
@@ -396,6 +400,32 @@ export default function KanbanPage() {
     await supabase.from('posts').delete().eq('id', id)
     setPostDetalhes(null)
     carregar()
+  }
+
+  function toggleSel(id: string) {
+    setSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  function sairSelecao() { setModoSelecao(false); setSelecionados([]) }
+  async function moverSelecionados(status: string) {
+    if (!status || selecionados.length === 0) return
+    for (const id of selecionados) await moverPost(id, status)
+    sairSelecao()
+  }
+  async function excluirSelecionados() {
+    if (selecionados.length === 0) return
+    if (!confirm('Excluir ' + selecionados.length + ' post(s)? Não dá pra desfazer.')) return
+    await supabase.from('posts').delete().in('id', selecionados)
+    sairSelecao(); carregar()
+  }
+  async function editarSelecionados() {
+    const upd: any = {}
+    if (lote.cliente_id) upd.cliente_id = lote.cliente_id
+    if (lote.data_publicacao) upd.data_publicacao = lote.data_publicacao
+    if (lote.tipo) upd.tipo = lote.tipo
+    if (Object.keys(upd).length === 0 || selecionados.length === 0) return
+    await supabase.from('posts').update(upd).in('id', selecionados)
+    setModalLote(false); setLote({ cliente_id: '', data_publicacao: '', tipo: '' })
+    sairSelecao(); carregar()
   }
 
   // ── Importação CSV ──────────────────────────────────────────
@@ -533,12 +563,12 @@ export default function KanbanPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="page-title">Kanban Editorial</h1>
           <p className="text-gray-500 text-sm mt-1">{posts.length} posts no pipeline</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             className="input text-sm py-1.5 pr-8 w-auto"
             value={ordenacao}
@@ -549,6 +579,10 @@ export default function KanbanPage() {
             <option value="az">A → Z</option>
             <option value="za">Z → A</option>
           </select>
+          <button onClick={() => modoSelecao ? sairSelecao() : setModoSelecao(true)}
+            className={cn('btn-secondary flex items-center gap-2 text-sm', modoSelecao && 'bg-vinho text-white')}>
+            <CheckCircle size={15} /> {modoSelecao ? 'Cancelar seleção' : 'Selecionar'}
+          </button>
           <button onClick={() => setModalImportar(true)} className="btn-secondary flex items-center gap-2 text-sm">
             <Upload size={15} /> Importar CSV
           </button>
@@ -582,9 +616,9 @@ export default function KanbanPage() {
           {COLUNAS.map(c => <div key={c} className="w-64 flex-shrink-0 h-96 bg-creme rounded-2xl animate-pulse" />)}
         </div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-6">
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-24 snap-x snap-mandatory sm:snap-none -mx-4 px-4 sm:mx-0 sm:px-0">
           {COLUNAS.map(coluna => (
-            <div key={coluna} className="w-64 flex-shrink-0 bg-creme/50 rounded-2xl"
+            <div key={coluna} className="w-[82vw] sm:w-72 flex-shrink-0 snap-start bg-creme/60 rounded-2xl self-start"
               onDragOver={e => e.preventDefault()}
               onDrop={e => {
                 e.preventDefault()
@@ -605,12 +639,13 @@ export default function KanbanPage() {
               <div className="px-3 pb-3 space-y-2 min-h-24">
                 {postsPorColuna(coluna).map(post => (
                   <div key={post.id}
-                    draggable
+                    draggable={!modoSelecao}
                     onDragStart={e => { e.dataTransfer.setData('postId', post.id); setArrastando(post.id) }}
                     onDragEnd={() => setArrastando(null)}
-                    onClick={() => setPostModalKanban(post)}
+                    onClick={() => modoSelecao ? toggleSel(post.id) : abrirDetalhes(post)}
                     className={cn(
-                      'bg-white rounded-xl shadow-card cursor-pointer group transition-all hover:shadow-card-hover overflow-hidden border-l-4',
+                      'bg-white rounded-xl shadow-card cursor-pointer group transition-all hover:shadow-card-hover overflow-hidden border-l-4 relative',
+                      selecionados.includes(post.id) && 'ring-2 ring-vinho',
                       arrastando === post.id && 'opacity-40',
                       post.status_cliente === 'reprovado' && 'border-l-red-500 bg-red-50/30',
                       post.status_cliente === 'aprovado' && post.status_interno !== 'aprovacao_arte' && 'border-l-emerald-500',
@@ -651,6 +686,12 @@ export default function KanbanPage() {
                       </div>
                     )}
 
+                    {modoSelecao && (
+                      <div className={cn('absolute top-2 left-2 z-10 w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs',
+                        selecionados.includes(post.id) ? 'bg-vinho border-vinho text-white' : 'bg-white/90 border-gray-300')}>
+                        {selecionados.includes(post.id) && '✓'}
+                      </div>
+                    )}
                     <div className="p-3">
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -663,7 +704,7 @@ export default function KanbanPage() {
                         {post.status_cliente === 'aprovado' && post.status_interno === 'aprovacao_arte' && (
                           <span className="badge bg-orange-100 text-orange-600 text-xs flex-shrink-0">✓ Aguard. arte</span>
                         )}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                           {/* Upload rápido de mídia */}
                           <label onClick={e => e.stopPropagation()} title="Adicionar mídia" className="cursor-pointer text-gray-300 hover:text-vinho transition-colors">
                             {uploadandoMidia === post.id
@@ -679,7 +720,10 @@ export default function KanbanPage() {
                         </div>
                       </div>
 
-                      <p className="text-sm font-medium text-gray-800 leading-tight mb-2">{post.titulo}</p>
+                      <p className="text-sm font-semibold text-gray-800 leading-snug mb-1">{post.titulo}</p>
+                      {(post.tema || post.copy) && (
+                        <p className="text-xs text-gray-500 line-clamp-2 mb-2">{post.tema || post.copy}</p>
+                      )}
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1 text-gray-400">
@@ -699,16 +743,14 @@ export default function KanbanPage() {
                         </div>
                       )}
 
-                      <div className="mt-2 pt-2 border-t border-gray-50 opacity-0 group-hover:opacity-100 transition-all">
-                        <div className="flex flex-wrap gap-1">
-                          {COLUNAS.filter(c => c !== coluna).slice(0, 3).map(c => (
-                            <button key={c} onClick={e => { e.stopPropagation(); moverPost(post.id, c) }}
-                              className="text-xs px-2 py-0.5 rounded-lg bg-creme hover:bg-rosa-pale text-gray-600 transition-colors">
-                              {STATUS_POST_LABELS[c]}
-                            </button>
-                          ))}
+                      {!modoSelecao && (
+                        <div className="mt-2 pt-2 border-t border-gray-50" onClick={e => e.stopPropagation()}>
+                          <select value={coluna} onChange={e => moverPost(post.id, e.target.value)}
+                            className="w-full text-xs bg-creme/70 rounded-lg px-2 py-1.5 text-gray-600 border-0">
+                            {COLUNAS.map(c => <option key={c} value={c}>Mover: {STATUS_POST_LABELS[c]}</option>)}
+                          </select>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -920,6 +962,24 @@ export default function KanbanPage() {
                     </a>
                   </div>
                 )}
+                {postDetalhes.link_externo && (
+                  <div>
+                    <p className="label">Link</p>
+                    <a href={postDetalhes.link_externo} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-vinho break-all"><Paperclip size={14} /> {postDetalhes.link_externo}</a>
+                  </div>
+                )}
+                {(postDetalhes.midias_urls || []).length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {(postDetalhes.midias_urls as string[]).map((u: string, i: number) => (
+                      <a key={i} href={u} target="_blank" rel="noopener noreferrer" className="aspect-square rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex items-center justify-center">
+                        {/\.(mp4|mov|webm)$/i.test(u) ? <video src={u} className="w-full h-full object-cover" />
+                          : /\.(png|jpe?g|webp|gif)$/i.test(u) ? <img src={u} alt="" className="w-full h-full object-cover" />
+                          : <Paperclip size={20} className="text-gray-400" />}
+                      </a>
+                    ))}
+                  </div>
+                )}
                 {postDetalhes.feedback_cliente && (
                   <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
                     <p className="label text-orange-600">Feedback do cliente</p>
@@ -927,6 +987,8 @@ export default function KanbanPage() {
                   </div>
                 )}
 
+                <button onClick={() => { const p = postDetalhes; setPostDetalhes(null); setPostModalKanban(p) }}
+                  className="btn-secondary w-full justify-center text-sm">Conversa e aprovação do cliente</button>
                 <div className="flex gap-3 pt-2">
                   <button onClick={() => excluirPost(postDetalhes.id)} className="btn-danger flex-1 justify-center">Excluir</button>
                   <button onClick={() => { setPostDetalhes(null); setModoEditar(false) }} className="btn-secondary flex-1">Fechar</button>
@@ -935,6 +997,43 @@ export default function KanbanPage() {
             )}
           </div>
         )}
+      </Modal>
+
+      {modoSelecao && (
+        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white shadow-modal rounded-2xl px-4 py-3 flex items-center gap-2 flex-wrap justify-center max-w-[94vw]">
+          <span className="text-sm font-medium text-gray-700">{selecionados.length} selecionado(s)</span>
+          <button className="text-xs text-vinho underline" onClick={() => setSelecionados(postsFiltrados.map(p => p.id))}>todos</button>
+          <select className="text-xs bg-creme rounded-lg px-2 py-1.5" value="" onChange={e => moverSelecionados(e.target.value)}>
+            <option value="">Mover para…</option>
+            {COLUNAS.map(c => <option key={c} value={c}>{STATUS_POST_LABELS[c]}</option>)}
+          </select>
+          <button disabled={selecionados.length === 0} onClick={() => setModalLote(true)} className="btn-secondary text-xs px-3 py-1.5">Editar em grupo</button>
+          <button disabled={selecionados.length === 0} onClick={excluirSelecionados} className="btn-danger text-xs px-3 py-1.5">Excluir</button>
+        </div>
+      )}
+
+      <Modal open={modalLote} onClose={() => setModalLote(false)}>
+        <div className="p-6 space-y-4">
+          <h2 className="font-display text-xl font-semibold text-vinho">Editar {selecionados.length} post(s)</h2>
+          <p className="text-xs text-gray-400">Preencha só o que quer mudar. O resto fica como está.</p>
+          <div><label className="label">Cliente</label>
+            <select className="input" value={lote.cliente_id} onChange={e => setLote({ ...lote, cliente_id: e.target.value })}>
+              <option value="">Não alterar</option>
+              {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select></div>
+          <div><label className="label">Tipo</label>
+            <select className="input" value={lote.tipo} onChange={e => setLote({ ...lote, tipo: e.target.value })}>
+              <option value="">Não alterar</option>
+              <option value="reels">Reels</option><option value="carrossel">Carrossel</option>
+              <option value="feed">Feed</option><option value="stories">Stories</option><option value="tiktok">TikTok</option>
+            </select></div>
+          <div><label className="label">Data de publicação</label>
+            <input className="input" type="date" value={lote.data_publicacao} onChange={e => setLote({ ...lote, data_publicacao: e.target.value })} /></div>
+          <div className="flex gap-3">
+            <button onClick={() => setModalLote(false)} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={editarSelecionados} className="btn-primary flex-1 justify-center">Aplicar</button>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal novo post */}
