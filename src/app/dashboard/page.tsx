@@ -60,7 +60,7 @@ export default async function DashboardPage() {
     { data: eventos },
     { data: docs },
   ] = await Promise.all([
-    supabase.from('posts').select('id, titulo, tipo, data_publicacao, status_interno, status_cliente, updated_at, created_at, clientes(nome, cor)')
+    supabase.from('posts').select('id, titulo, tipo, data_publicacao, status_interno, status_cliente, clientes(nome, cor)')
       .not('data_publicacao', 'is', null).lte('data_publicacao', daqui7),
     supabase.from('clientes').select('id, nome, cor, data_fim_contrato').eq('status', 'ativo'),
     supabase.from('pagamentos').select('id, valor, vencimento, status, clientes(nome, cor)')
@@ -92,7 +92,7 @@ export default async function DashboardPage() {
     .concat((docs || []).filter((d: any) => d.status_aprovacao === 'reprovado').map((d: any) => mkDoc(d, 'reprovado')))
 
   const deveRetorno = (posts || []).filter((p: any) => ['aguardando_cliente', 'aprovacao_arte'].includes(p.status_interno))
-    .map((p: any) => mk(p, dias(p.updated_at) + ' dia(s) esperando'))
+    .map((p: any) => mk(p, dia(p) < hoje ? 'data já passou' : 'publica ' + formatDate(dia(p), 'dd/MM')))
     .concat((docs || []).filter((d: any) => d.status_aprovacao === 'aguardando').map((d: any) => mkDoc(d, dias(d.updated_at) + ' dia(s) esperando')))
 
   const paraEnviar = (posts || []).filter((p: any) => p.status_interno === 'copy' && dia(p) >= hoje)
