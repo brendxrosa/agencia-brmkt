@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatDate } from '@/lib/utils'
-import { Plus, X, Search, FileText, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle, LayoutGrid, List } from 'lucide-react'
+import { Plus, X, Search, FileText, Upload, Trash2, Eye, Edit2, Save, ExternalLink, Send, CheckCircle, Clock, Settings, Paperclip, MessageCircle, LayoutGrid, List, Archive, ArchiveRestore } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -130,6 +130,7 @@ const STATUS_APROVACAO: Record<string, { label: string; cor: string }> = {
   aguardando: { label: 'Aguardando aprovação', cor: 'bg-orange-100 text-orange-700' },
   aprovado: { label: 'Aprovado', cor: 'bg-emerald-100 text-emerald-700' },
   reprovado: { label: 'Reprovado', cor: 'bg-red-100 text-red-700' },
+  arquivado: { label: 'Arquivado', cor: 'bg-gray-200 text-gray-500' },
 }
 
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
@@ -151,7 +152,8 @@ export default function DocsPage() {
   const [tiposCustom, setTiposCustom] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
-  const [vistaGrade, setVistaGrade] = useState(true)
+  const [vistaGrade, setVistaGrade] = useState(false)
+  const [mostrarArquivados, setMostrarArquivados] = useState(false)
   const [filtroCliente, setFiltroCliente] = useState('todos')
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -235,7 +237,8 @@ export default function DocsPage() {
   }
 
   async function salvar(enviarParaAprovacao = false) {
-    if (!form.titulo) return alert('Título é obrigatório!')
+    const tituloFinal = form.titulo || (arquivoPendente ? arquivoPendente.name.replace(/\.[^.]+$/, '') : '') || (form.drive_url ? 'Link: ' + form.drive_url.replace(/^https?:\/\//, '').slice(0, 40) : '')
+    if (!tituloFinal) return alert('Dê um título, ou anexe um arquivo ou link.')
     setSalvando(true)
 
     let linkArquivo = form.link_arquivo || null
@@ -252,7 +255,7 @@ export default function DocsPage() {
     }
 
     const dados = {
-      titulo: form.titulo, tipo: form.tipo,
+      titulo: tituloFinal, tipo: form.tipo,
       cliente_id: form.cliente_id || null,
       conteudo: form.conteudo || null,
       link_arquivo: linkArquivo,
@@ -282,6 +285,22 @@ export default function DocsPage() {
     carregar()
   }
 
+  async function arquivar(doc: any) {
+    await supabase.from('docs').update({ status_aprovacao: 'arquivado', visivel_cliente: false, updated_at: new Date().toISOString() }).eq('id', doc.id)
+    carregar()
+  }
+  async function desarquivar(doc: any) {
+    await supabase.from('docs').update({ status_aprovacao: 'rascunho', updated_at: new Date().toISOString() }).eq('id', doc.id)
+    carregar()
+  }
+  async function arquivarReprovados() {
+    const ids = docs.filter(d => d.status_aprovacao === 'reprovado').map(d => d.id)
+    if (ids.length === 0) return
+    if (!confirm('Arquivar ' + ids.length + ' documento(s) reprovado(s)? Eles saem da visão geral, mas dá pra ver em "Arquivados".')) return
+    await supabase.from('docs').update({ status_aprovacao: 'arquivado', visivel_cliente: false }).in('id', ids)
+    carregar()
+  }
+
   async function excluir(id: string) {
     if (!confirm('Excluir este documento?')) return
     await supabase.from('docs').delete().eq('id', id)
@@ -292,11 +311,13 @@ export default function DocsPage() {
     const buscaOk = d.titulo?.toLowerCase().includes(busca.toLowerCase())
     const clienteOk = filtroCliente === 'todos' || d.cliente_id === filtroCliente
     const tipoOk = filtroTipo === 'todos' || d.tipo === filtroTipo
-    const statusOk = filtroStatus === 'todos' || d.status_aprovacao === filtroStatus
+    const statusOk = filtroStatus === 'todos' ? (mostrarArquivados || d.status_aprovacao !== 'arquivado') : d.status_aprovacao === filtroStatus
     return buscaOk && clienteOk && tipoOk && statusOk
   })
 
   const aguardando = docs.filter(d => d.status_aprovacao === 'aguardando').length
+  const reprovados = docs.filter(d => d.status_aprovacao === 'reprovado').length
+  const arquivados = docs.filter(d => d.status_aprovacao === 'arquivado').length
 
   return (
     <div className="space-y-6">
@@ -304,11 +325,16 @@ export default function DocsPage() {
         <div>
           <h1 className="page-title">Documentos</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {docs.length} documento(s)
+            {docs.length - arquivados} documento(s)
             {aguardando > 0 && <span className="ml-2 badge bg-orange-100 text-orange-700">{aguardando} aguardando aprovação</span>}
           </p>
         </div>
         <div className="flex gap-2">
+          {reprovados > 0 && (
+            <button onClick={arquivarReprovados} className="btn-secondary flex items-center gap-2 text-sm">
+              <Archive size={15} /> Arquivar reprovados ({reprovados})
+            </button>
+          )}
           <button onClick={() => setModalTipos(true)} className="btn-secondary flex items-center gap-2 text-sm">
             <Settings size={15} /> Tipos
           </button>
@@ -336,6 +362,12 @@ export default function DocsPage() {
           <option value="todos">Todos os status</option>
           {Object.entries(STATUS_APROVACAO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
+        {arquivados > 0 && (
+          <label className="flex items-center gap-2 text-sm text-gray-500 flex-shrink-0 px-2">
+            <input type="checkbox" checked={mostrarArquivados} onChange={e => setMostrarArquivados(e.target.checked)} />
+            Mostrar arquivados ({arquivados})
+          </label>
+        )}
         <div className="flex items-center gap-1 bg-creme rounded-xl p-1 flex-shrink-0">
           <button onClick={() => setVistaGrade(true)}
             title="Grade"
@@ -385,7 +417,12 @@ export default function DocsPage() {
                 </div>
                 <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                   <span className="text-xs text-gray-400">{formatDate(doc.updated_at, "dd/MM/yyyy")}</span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                    {doc.status_aprovacao === 'arquivado' ? (
+                      <button onClick={() => desarquivar(doc)} className="btn-ghost p-1.5" title="Desarquivar"><ArchiveRestore size={14} /></button>
+                    ) : (
+                      <button onClick={() => arquivar(doc)} className="btn-ghost p-1.5" title="Arquivar"><Archive size={14} /></button>
+                    )}
                     {doc.status_aprovacao === 'rascunho' && doc.cliente_id && (
                       <button onClick={() => enviarParaAprovacao(doc)} disabled={enviando}
                         className="btn-ghost p-1.5 text-orange-500 hover:text-orange-700" title="Enviar para aprovação">
