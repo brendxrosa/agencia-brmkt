@@ -82,8 +82,9 @@ export default function ImportarPlanejamento({ open, onClose, clientes, onConclu
   }
 
   async function chamar(conteudo: any[]): Promise<any[]> {
+    const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/claude-extract', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (session?.access_token || '') },
       body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 6000, messages: [{ role: 'user', content: conteudo }] }),
     })
     if (!res.ok) throw new Error('A leitura falhou (' + res.status + ').')
