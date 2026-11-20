@@ -2,32 +2,30 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { cn, formatDate } from '@/lib/utils'
-import { STATUS_POST_LABELS, STATUS_POST_CORES } from '@/lib/utils'
-import { ChevronLeft, ChevronRight, Calendar, Filter, X, Paperclip, Clock, MapPin, Link } from 'lucide-react'
+import { cn, formatDate, STATUS_POST_LABELS, STATUS_POST_CORES } from '@/lib/utils'
+import { ChevronLeft, ChevronRight, X, Clock, MapPin, Link as LinkIcon, Paperclip, Video, Layout, Image as ImageIcon, Instagram, ImageOff, Pencil } from 'lucide-react'
 import PostModal from '@/components/PostModal'
-import { ETIQUETA_LABELS } from '@/lib/utils'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, isToday } from 'date-fns'
+import FeedPreview, { capaDoPost } from '@/components/FeedPreview'
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, parseISO, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-const TIPO_EVENTO_CONFIG: Record<string, { label: string; cor: string }> = {
-  reuniao: { label: 'Reunião', cor: '#6B0F2A' },
-  captacao: { label: 'Captação', cor: '#C2185B' },
-  entrega: { label: 'Entrega', cor: '#7B1FA2' },
-  pagamento: { label: 'Pagamento', cor: '#2E7D32' },
-  outro: { label: 'Outro', cor: '#E65100' },
-}
+const STATUS_LISTA = ['copy', 'aguardando_cliente', 'design', 'captacao', 'edicao', 'aprovacao_arte', 'aprovado', 'publicado']
+const PRECISA_ARTE = ['aguardando_cliente', 'aprovacao_arte', 'aprovado', 'publicado']
 
-function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+function Modal({ open, onClose, children, largo }: { open: boolean; onClose: () => void; children: React.ReactNode; largo?: boolean }) {
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-modal w-full max-w-lg animate-slide-up max-h-[85vh] overflow-y-auto">
-        {children}
-      </div>
+      <div className={cn('relative bg-white rounded-3xl shadow-modal w-full max-h-[90vh] overflow-y-auto', largo ? 'max-w-3xl' : 'max-w-xl')}>{children}</div>
     </div>
   )
+}
+
+function IconeTipo({ tipo }: { tipo?: string }) {
+  if (tipo === 'reels') return <Video size={11} />
+  if (tipo === 'carrossel') return <Layout size={11} />
+  return <ImageIcon size={11} />
 }
 
 export default function CalendarioPage() {
@@ -36,476 +34,261 @@ export default function CalendarioPage() {
   const [eventos, setEventos] = useState<any[]>([])
   const [clientes, setClientes] = useState<any[]>([])
   const [mes, setMes] = useState(new Date())
-  const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(new Date())
+  const [dia, setDia] = useState<Date>(new Date())
+  const [vista, setVista] = useState<'mes' | 'lista'>('mes')
   const [filtroCliente, setFiltroCliente] = useState('todos')
-  const [filtroTipo, setFiltroTipo] = useState('todos')
-  const [loading, setLoading] = useState(true)
-  const [itemDetalhes, setItemDetalhes] = useState<any>(null)
-  const [tipoDetalhes, setTipoDetalhes] = useState<'post' | 'evento' | null>(null)
-  const [postModalAberto, setPostModalAberto] = useState<any>(null)
+  const [post, setPost] = useState<any>(null)
+  const [linkArte, setLinkArte] = useState('')
+  const [salvandoLink, setSalvandoLink] = useState(false)
+  const [evento, setEvento] = useState<any>(null)
+  const [postCompleto, setPostCompleto] = useState<any>(null)
+  const [feedAberto, setFeedAberto] = useState(false)
+  const [feedCliente, setFeedCliente] = useState('')
+  const [feedPosts, setFeedPosts] = useState<any[]>([])
   const [userId, setUserId] = useState('')
   const [userName, setUserName] = useState('')
-  const [alterandoStatus, setAlterandoStatus] = useState<string | null>(null)
-
-  async function alterarStatus(postId: string, novoStatus: string) {
-    setAlterandoStatus(postId)
-    await supabase.from('posts').update({ status_interno: novoStatus }).eq('id', postId)
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status_interno: novoStatus } : p))
-    if (itemDetalhes?.id === postId) setItemDetalhes((p: any) => ({ ...p, status_interno: novoStatus }))
-    setAlterandoStatus(null)
-  }
 
   async function carregar() {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       setUserId(user.id)
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user.id).single()
-      setUserName(profile?.nome || 'Brenda')
+      const { data: pf } = await supabase.from('profiles').select('nome').eq('id', user.id).single()
+      setUserName(pf?.nome || 'Brenda')
     }
-    const inicio = format(startOfMonth(mes), 'yyyy-MM-dd')
-    const fim = format(endOfMonth(mes), 'yyyy-MM-dd')
-
+    const inicio = format(startOfWeek(startOfMonth(mes)), 'yyyy-MM-dd')
+    const fim = format(endOfWeek(endOfMonth(mes)), 'yyyy-MM-dd')
     const [{ data: p }, { data: e }, { data: c }] = await Promise.all([
-      supabase.from('posts').select('*, clientes(nome, cor)')
-        .gte('data_publicacao', inicio).lte('data_publicacao', fim).order('data_publicacao'),
-      supabase.from('eventos').select('*, clientes(nome, cor)')
-        .gte('data_inicio', inicio).lte('data_inicio', fim + 'T23:59:59').order('data_inicio'),
-      supabase.from('clientes').select('id, nome, cor').eq('status', 'ativo').order('nome')
+      supabase.from('posts').select('*, clientes(nome, cor, instagram)').gte('data_publicacao', inicio).lte('data_publicacao', fim).order('data_publicacao'),
+      supabase.from('eventos').select('*, clientes(nome, cor)').gte('data_inicio', inicio).lte('data_inicio', fim + 'T23:59:59').order('data_inicio'),
+      supabase.from('clientes').select('id, nome, cor, instagram').order('nome'),
     ])
-
-    setPosts(p || [])
-    setEventos(e || [])
-    setClientes(c || [])
-    setLoading(false)
+    setPosts(p || []); setEventos(e || []); setClientes(c || [])
   }
-
   useEffect(() => { carregar() }, [mes])
 
-  const diasDoMes = eachDayOfInterval({ start: startOfMonth(mes), end: endOfMonth(mes) })
-  const primeiroDia = startOfMonth(mes).getDay()
-  const diasVazios = Array(primeiroDia).fill(null)
+  const pf = posts.filter(p => filtroCliente === 'todos' || p.cliente_id === filtroCliente)
+  const ef = eventos.filter(e => filtroCliente === 'todos' || e.cliente_id === filtroCliente)
+  const postsDo = (d: Date) => pf.filter(p => p.data_publicacao && isSameDay(parseISO(p.data_publicacao), d))
+  const eventosDo = (d: Date) => ef.filter(e => isSameDay(parseISO(e.data_inicio), d))
+  const semArte = (p: any) => PRECISA_ARTE.includes(p.status_interno) && !capaDoPost(p) && !p.link_externo && !(p.midias_urls || []).length
 
-  const postsFiltrados = posts.filter(p => filtroCliente === 'todos' || p.cliente_id === filtroCliente)
-  const eventosFiltrados = eventos.filter(e => filtroCliente === 'todos' || e.cliente_id === filtroCliente)
+  const dias = eachDayOfInterval({ start: startOfWeek(startOfMonth(mes)), end: endOfWeek(endOfMonth(mes)) })
 
-  const postsNoDia = (dia: Date) =>
-    postsFiltrados.filter(p => p.data_publicacao && isSameDay(parseISO(p.data_publicacao), dia))
-      .filter(() => filtroTipo === 'todos' || filtroTipo === 'posts')
+  function abrirPost(p: any) { setPost(p); setLinkArte(p.link_externo || '') }
 
-  const eventosNoDia = (dia: Date) =>
-    eventosFiltrados.filter(e => isSameDay(parseISO(e.data_inicio), dia))
-      .filter(() => filtroTipo === 'todos' || filtroTipo === 'eventos')
-
-  const itensDia = diaSelecionado ? {
-    posts: postsFiltrados.filter(p => p.data_publicacao && isSameDay(parseISO(p.data_publicacao), diaSelecionado)),
-    eventos: eventosFiltrados.filter(e => isSameDay(parseISO(e.data_inicio), diaSelecionado))
-  } : { posts: [], eventos: [] }
-
-  function abrirPost(post: any) {
-    setPostModalAberto(post)
+  async function mudarStatus(id: string, status: string) {
+    await supabase.from('posts').update({ status_interno: status }).eq('id', id)
+    setPosts(prev => prev.map(p => p.id === id ? { ...p, status_interno: status } : p))
+    setPost((p: any) => p && p.id === id ? { ...p, status_interno: status } : p)
   }
 
-  function abrirEvento(evento: any) {
-    setItemDetalhes(evento)
-    setTipoDetalhes('evento')
+  async function salvarLink() {
+    if (!post) return
+    setSalvandoLink(true)
+    const link = linkArte.trim() || null
+    await supabase.from('posts').update({ link_externo: link }).eq('id', post.id)
+    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, link_externo: link } : p))
+    setPost({ ...post, link_externo: link })
+    setSalvandoLink(false)
   }
+
+  async function abrirFeed(clienteId: string) {
+    const id = clienteId || clientes[0]?.id || ''
+    setFeedCliente(id); setFeedAberto(true)
+    if (!id) return
+    const { data } = await supabase.from('posts').select('*').eq('cliente_id', id).not('data_publicacao', 'is', null).order('data_publicacao', { ascending: false }).limit(60)
+    setFeedPosts(data || [])
+  }
+
+  const clienteFeed = clientes.find(c => c.id === feedCliente)
+  const doMes = pf.filter(p => p.data_publicacao && isSameMonth(parseISO(p.data_publicacao), mes))
+  const diasComPosts = Array.from(new Set(doMes.map(p => String(p.data_publicacao).slice(0, 10)))).sort()
+
+  const Chip = ({ p }: { p: any }) => (
+    <div onClick={ev => { ev.stopPropagation(); abrirPost(p) }}
+      className="hidden sm:flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-tight cursor-pointer truncate hover:brightness-95"
+      style={{ backgroundColor: (p.clientes?.cor || '#C2185B') + '26', borderLeft: '3px solid ' + (p.clientes?.cor || '#C2185B') }}>
+      <IconeTipo tipo={p.tipo} />
+      <span className="truncate text-gray-800">{p.titulo}</span>
+      {semArte(p) && <ImageOff size={10} className="text-orange-500 flex-shrink-0" />}
+    </div>
+  )
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="page-title">Calendário</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {postsFiltrados.length} posts · {eventosFiltrados.length} eventos em {format(mes, 'MMMM', { locale: ptBR })}
-          </p>
+          <p className="text-gray-500 text-sm mt-1">{doMes.length} posts em {format(mes, 'MMMM', { locale: ptBR })}</p>
+        </div>
+        <div className="flex gap-2 flex-wrap items-center">
+          <select className="input text-sm py-1.5 w-auto" value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}>
+            <option value="todos">Todos os clientes</option>
+            {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+          <button onClick={() => abrirFeed(filtroCliente === 'todos' ? '' : filtroCliente)} className="btn-secondary text-sm flex items-center gap-2">
+            <Instagram size={15} /> Prévia do feed
+          </button>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex gap-3 flex-wrap items-center">
-        <Filter size={14} className="text-gray-400" />
-        <select className="input text-sm py-1.5 w-auto"
-          value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}>
-          <option value="todos">Todos os clientes</option>
-          {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-        </select>
-        <div className="flex gap-1 bg-creme rounded-xl p-1">
-          {[['todos','Todos'],['posts','Posts'],['eventos','Eventos']].map(([v,l]) => (
-            <button key={v} onClick={() => setFiltroTipo(v)}
-              className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                filtroTipo === v ? 'bg-white shadow-card text-vinho' : 'text-gray-500 hover:text-gray-700')}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Calendário */}
-        <div className="lg:col-span-2 card">
-          <div className="flex items-center justify-between mb-4">
+      <div className="card">
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
             <button onClick={() => setMes(m => subMonths(m, 1))} className="btn-ghost p-2"><ChevronLeft size={18} /></button>
-            <h2 className="font-display text-lg font-semibold text-gray-800 capitalize">
-              {format(mes, 'MMMM yyyy', { locale: ptBR })}
-            </h2>
             <button onClick={() => setMes(m => addMonths(m, 1))} className="btn-ghost p-2"><ChevronRight size={18} /></button>
+            <button onClick={() => { setMes(new Date()); setDia(new Date()) }} className="btn-secondary text-xs px-3 py-1.5 ml-1">Hoje</button>
           </div>
-
-          <div className="grid grid-cols-7 mb-2">
-            {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => (
-              <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+          <h2 className="font-display text-lg font-semibold text-gray-800 capitalize">{format(mes, 'MMMM yyyy', { locale: ptBR })}</h2>
+          <div className="flex gap-1 bg-creme rounded-xl p-1">
+            {([['mes', 'Mês'], ['lista', 'Lista']] as const).map(([v, l]) => (
+              <button key={v} onClick={() => setVista(v)}
+                className={cn('px-3 py-1.5 rounded-lg text-xs font-medium', vista === v ? 'bg-white shadow-card text-vinho' : 'text-gray-500')}>{l}</button>
             ))}
           </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {diasVazios.map((_, i) => <div key={`v-${i}`} />)}
-            {diasDoMes.map(dia => {
-              const ps = postsNoDia(dia)
-              const es = eventosNoDia(dia)
-              const selecionado = diaSelecionado && isSameDay(dia, diaSelecionado)
-              const hoje = isToday(dia)
-              const fds = dia.getDay() === 0 || dia.getDay() === 6
-
-              return (
-                <button key={dia.toISOString()} onClick={() => setDiaSelecionado(dia)}
-                  className={cn(
-                    'relative p-1 rounded-xl text-sm transition-all min-h-14 flex flex-col items-center gap-0.5',
-                    selecionado ? 'bg-vinho text-white' : hoje ? 'bg-rosa-pale text-rosa font-semibold' : 'hover:bg-creme',
-                    fds && !selecionado && 'text-gray-400'
-                  )}>
-                  <span className="text-xs font-medium">{format(dia, 'd')}</span>
-                  {ps.length > 0 && (
-                    <div className="w-full space-y-0.5 px-0.5">
-                      {ps.slice(0, 2).map(p => (
-                        <div key={p.id} className="w-full flex items-center gap-0.5 rounded overflow-hidden"
-                          style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.2)' : (p.clientes?.cor || '#C2185B') + '22' }}>
-                          <div className="w-1 h-3.5 flex-shrink-0 rounded-sm"
-                            style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.8)' : p.clientes?.cor || '#C2185B' }} />
-                          <span className={cn('text-xs truncate leading-none py-0.5',
-                            selecionado ? 'text-white/90' : 'text-gray-700')}
-                            style={{ fontSize: '9px' }}>
-                            {p.tipo?.slice(0,1).toUpperCase()} {p.titulo?.split(' ').slice(0,2).join(' ')}
-                          </span>
-                        </div>
-                      ))}
-                      {ps.length > 2 && (
-                        <span className={cn('text-xs', selecionado ? 'text-white/60' : 'text-gray-400')}
-                          style={{ fontSize: '9px' }}>+{ps.length - 2} mais</span>
-                      )}
-                    </div>
-                  )}
-                  {es.length > 0 && (
-                    <div className="flex gap-0.5 flex-wrap justify-center">
-                      {es.slice(0, 2).map(e => (
-                        <span key={e.id} className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: selecionado ? 'rgba(255,255,255,0.5)' : '#6B0F2A' }} />
-                      ))}
-                    </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Legenda */}
-          <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100">
-            {filtroCliente === 'todos' ? clientes.map(c => (
-              <div key={c.id} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.cor }} />
-                <span className="text-xs text-gray-500">{c.nome}</span>
-              </div>
-            )) : (
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: clientes.find(c => c.id === filtroCliente)?.cor }} />
-                <span className="text-xs text-gray-500">{clientes.find(c => c.id === filtroCliente)?.nome}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-vinho/40" />
-              <span className="text-xs text-gray-500">Eventos</span>
-            </div>
-          </div>
         </div>
 
-        {/* Painel lateral */}
-        <div className="space-y-4">
-          <div className="card">
-            <h3 className="section-title text-sm mb-3">
-              {diaSelecionado ? format(diaSelecionado, "EEEE, dd 'de' MMMM", { locale: ptBR }) : 'Selecione um dia'}
-            </h3>
-
-            {itensDia.posts.length === 0 && itensDia.eventos.length === 0 ? (
-              <div className="text-center py-6">
-                <Calendar size={24} className="mx-auto mb-2 text-gray-200" />
-                <p className="text-xs text-gray-400">Nenhum item neste dia</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {itensDia.eventos.map(evento => (
-                  <button key={evento.id} onClick={() => abrirEvento(evento)}
-                    className="w-full p-2.5 rounded-xl bg-vinho/5 border border-vinho/10 text-left hover:bg-vinho/10 transition-all">
-                    <p className="text-sm font-medium text-gray-800">{evento.titulo}</p>
-                    {!evento.dia_todo && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Clock size={11} className="text-gray-400" />
-                        <span className="text-xs text-gray-400">
-                          {format(parseISO(evento.data_inicio), 'HH:mm')}
-                          {evento.data_fim && ` - ${format(parseISO(evento.data_fim), 'HH:mm')}`}
-                        </span>
+        {vista === 'mes' ? (
+          <>
+            <div className="grid grid-cols-7 mb-1">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-px bg-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+              {dias.map(d => {
+                const ps = postsDo(d); const es = eventosDo(d)
+                return (
+                  <div key={d.toISOString()} onClick={() => setDia(d)}
+                    className={cn('bg-white min-h-16 sm:min-h-28 p-1 cursor-pointer hover:bg-creme/40', !isSameMonth(d, mes) && 'bg-gray-50', isSameDay(d, dia) && 'ring-2 ring-inset ring-vinho/60')}>
+                    <div className={cn('text-xs w-6 h-6 flex items-center justify-center rounded-full mb-0.5', isToday(d) ? 'bg-vinho text-white' : isSameMonth(d, mes) ? 'text-gray-700' : 'text-gray-300')}>{format(d, 'd')}</div>
+                    <div className="space-y-0.5">
+                      {ps.slice(0, 3).map(p => <Chip key={p.id} p={p} />)}
+                      {ps.length > 3 && <p className="hidden sm:block text-[11px] text-gray-400 px-1">+{ps.length - 3} mais</p>}
+                      <div className="flex sm:hidden gap-0.5 flex-wrap justify-center">
+                        {ps.slice(0, 4).map(p => <span key={p.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.clientes?.cor || '#C2185B' }} />)}
                       </div>
-                    )}
-                    <span className={cn('badge text-xs mt-1', {
-                      'bg-emerald-100 text-emerald-700': evento.status === 'confirmado',
-                      'bg-orange-100 text-orange-700': evento.status === 'pendente',
-                      'bg-red-100 text-red-700': evento.status === 'cancelado',
-                    })}>{evento.status}</span>
-                  </button>
-                ))}
-
-                {itensDia.posts.map(post => (
-                  <div key={post.id} className="rounded-xl border border-gray-100 overflow-hidden hover:shadow-card transition-all">
-                    {/* Linha colorida estilo Google Calendar */}
-                    <div className="flex items-stretch">
-                      <div className="w-1 flex-shrink-0 rounded-l-xl" style={{ backgroundColor: post.clientes?.cor || '#C2185B' }} />
-                      <button onClick={() => abrirPost(post)} className="flex-1 p-2.5 text-left">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-gray-800 truncate flex-1">{post.titulo}</p>
-                          {post.status_cliente === 'reprovado' && (
-                            <span className="badge bg-red-100 text-red-600 text-xs flex-shrink-0">✗ Reprovado</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {post.clientes?.nome} · <span className="capitalize">{post.tipo}</span>
-                        </p>
-                        {post.status_cliente === 'reprovado' && post.etiqueta_cliente && ETIQUETA_LABELS[post.etiqueta_cliente] && (
-                          <p className="text-xs text-red-500 mt-0.5">🏷 {ETIQUETA_LABELS[post.etiqueta_cliente]}</p>
-                        )}
-                      </button>
-                    </div>
-                    {/* Status alterável inline */}
-                    <div className="px-3 pb-2 pt-0">
-                      <select
-                        value={post.status_interno}
-                        disabled={alterandoStatus === post.id}
-                        onChange={e => alterarStatus(post.id, e.target.value)}
-                        onClick={e => e.stopPropagation()}
-                        className={cn(
-                          'text-xs rounded-lg px-2 py-1 border-0 font-medium cursor-pointer w-full',
-                          STATUS_POST_CORES[post.status_interno]
-                        )}>
-                        {['copy','aguardando_cliente','design','captacao','edicao','aprovacao_arte','aprovado','publicado'].map(s => (
-                          <option key={s} value={s}>{STATUS_POST_LABELS[s]}</option>
-                        ))}
-                      </select>
+                      {es.slice(0, 1).map(e => <div key={e.id} className="hidden sm:block text-[11px] truncate rounded px-1 bg-vinho text-white">{e.titulo}</div>)}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Resumo do mês */}
-          <div className="card">
-            <h3 className="section-title text-sm mb-3">Resumo do mês</h3>
-            <div className="space-y-2">
-              {[
-                ['Total de posts', postsFiltrados.length, 'text-gray-800'],
-                ['Publicados', postsFiltrados.filter(p => p.status_interno === 'publicado').length, 'text-emerald-700'],
-                ['Aguardando aprovação', postsFiltrados.filter(p => p.status_interno === 'aguardando_cliente').length, 'text-orange-600'],
-                ['Eventos', eventosFiltrados.length, 'text-gray-800'],
-                ['Eventos pendentes', eventosFiltrados.filter(e => e.status === 'pendente').length, 'text-orange-600'],
-              ].map(([label, value, cor]) => (
-                <div key={label as string} className="flex justify-between text-sm">
-                  <span className="text-gray-500">{label}</span>
-                  <span className={cn('font-semibold', cor)}>{value}</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
+          </>
+        ) : (
+          <div className="space-y-4">
+            {diasComPosts.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Nenhum post neste mês.</p>}
+            {diasComPosts.map(ds => (
+              <div key={ds}>
+                <p className="text-xs font-semibold text-gray-500 uppercase mb-1 capitalize">{format(parseISO(ds), "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
+                <div className="space-y-1">
+                  {doMes.filter(p => String(p.data_publicacao).slice(0, 10) === ds).map(p => (
+                    <button key={p.id} onClick={() => abrirPost(p)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-creme/50 text-left border-l-4" style={{ borderLeftColor: p.clientes?.cor || '#C2185B' }}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{p.titulo}</p>
+                        <p className="text-xs text-gray-400">{p.clientes?.nome} · {p.tipo}</p>
+                      </div>
+                      {semArte(p) && <ImageOff size={14} className="text-orange-500" />}
+                      <span className={cn('badge text-xs', STATUS_POST_CORES[p.status_interno])}>{STATUS_POST_LABELS[p.status_interno]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+        <p className="text-xs text-gray-400 mt-3 flex items-center gap-1"><ImageOff size={11} className="text-orange-500" /> = post sem arte/link ainda</p>
       </div>
 
-      {/* Lista completa */}
-      {postsFiltrados.length > 0 && (
-        <div className="card">
-          <h3 className="section-title text-sm mb-4">Todos os posts do mês</h3>
-          <div className="space-y-1">
-            {postsFiltrados.map(post => (
-              <button key={post.id} onClick={() => abrirPost(post)}
-                className={cn(
-                  'w-full flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0 px-2 rounded-xl transition-all text-left border-l-4',
-                  post.status_cliente === 'reprovado'
-                    ? 'border-l-red-500 bg-red-50/30 hover:bg-red-50/50'
-                    : post.status_cliente === 'aprovado'
-                    ? 'border-l-emerald-400 hover:bg-creme/30'
-                    : 'border-l-transparent hover:bg-creme/30'
-                )}>
-                <span className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: post.status_cliente === 'reprovado' ? '#ef4444' : post.clientes?.cor }} />
-                <div className="w-16 flex-shrink-0">
-                  <p className="text-xs text-gray-400">{post.data_publicacao ? formatDate(post.data_publicacao, 'dd/MM') : '—'}</p>
-                </div>
+      <div className="card">
+        <h3 className="section-title text-sm mb-3 capitalize">{format(dia, "EEEE, dd 'de' MMMM", { locale: ptBR })}</h3>
+        {postsDo(dia).length === 0 && eventosDo(dia).length === 0 ? <p className="text-sm text-gray-400">Nada neste dia.</p> : (
+          <div className="space-y-2">
+            {eventosDo(dia).map(e => (
+              <button key={e.id} onClick={() => setEvento(e)} className="w-full p-2.5 rounded-xl bg-vinho/5 border border-vinho/10 text-left hover:bg-vinho/10">
+                <p className="text-sm font-medium text-gray-800">{e.titulo}</p>
+                {!e.dia_todo && <p className="text-xs text-gray-400 flex items-center gap-1"><Clock size={11} />{format(parseISO(e.data_inicio), 'HH:mm')}</p>}
+              </button>
+            ))}
+            {postsDo(dia).map(p => (
+              <button key={p.id} onClick={() => abrirPost(p)} className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:shadow-card text-left border-l-4" style={{ borderLeftColor: p.clientes?.cor || '#C2185B' }}>
                 <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium truncate', post.status_cliente === 'reprovado' ? 'text-red-700' : 'text-gray-800')}>{post.titulo}</p>
-                  <p className="text-xs text-gray-400">{post.clientes?.nome} · {post.tipo}
-                    {post.status_cliente === 'reprovado' && post.etiqueta_cliente && ETIQUETA_LABELS[post.etiqueta_cliente]
-                      ? ` · 🏷 ${ETIQUETA_LABELS[post.etiqueta_cliente]}` : ''}
-                  </p>
+                  <p className="text-sm font-medium text-gray-800 truncate">{p.titulo}</p>
+                  <p className="text-xs text-gray-400">{p.clientes?.nome} · {p.tipo}</p>
                 </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className={cn('badge text-xs', STATUS_POST_CORES[post.status_interno])}>
-                    {STATUS_POST_LABELS[post.status_interno]}
-                  </span>
-                  {post.status_cliente === 'reprovado' && (
-                    <span className="badge bg-red-100 text-red-600 text-xs">✗</span>
-                  )}
-                  {post.status_cliente === 'aprovado' && (
-                    <span className="badge bg-emerald-100 text-emerald-600 text-xs">✓</span>
-                  )}
-                </div>
+                {semArte(p) && <ImageOff size={14} className="text-orange-500" />}
+                <span className={cn('badge text-xs', STATUS_POST_CORES[p.status_interno])}>{STATUS_POST_LABELS[p.status_interno]}</span>
               </button>
             ))}
           </div>
+        )}
+      </div>
+
+      <Modal open={!!post} onClose={() => setPost(null)}>
+        {post && (
+          <div className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{ backgroundColor: post.clientes?.cor }} /><span className="text-sm text-gray-500">{post.clientes?.nome}</span></div>
+              <button onClick={() => setPost(null)} className="btn-ghost p-2"><X size={18} /></button>
+            </div>
+            <div>
+              <h2 className="font-display text-xl font-semibold text-gray-800">{post.titulo}</h2>
+              <p className="text-xs text-gray-400 mt-1 capitalize">{post.tipo}{post.data_publicacao ? ' · ' + formatDate(post.data_publicacao) : ''}</p>
+            </div>
+            <select value={post.status_interno} onChange={e => mudarStatus(post.id, e.target.value)}
+              className={cn('text-xs rounded-lg px-2 py-1.5 border-0 font-medium w-full', STATUS_POST_CORES[post.status_interno])}>
+              {STATUS_LISTA.map(s => <option key={s} value={s}>{STATUS_POST_LABELS[s]}</option>)}
+            </select>
+
+            <div className={cn('rounded-xl p-3 border', semArte(post) ? 'bg-orange-50 border-orange-200' : 'bg-creme/50 border-transparent')}>
+              <label className="label flex items-center gap-1.5"><Paperclip size={13} /> Link da arte (Drive, Canva ou imagem)</label>
+              <div className="flex gap-2">
+                <input className="input flex-1" value={linkArte} onChange={e => setLinkArte(e.target.value)} placeholder="Cole o link aqui quando a arte ficar pronta" />
+                <button onClick={salvarLink} disabled={salvandoLink || linkArte.trim() === (post.link_externo || '')} className="btn-primary text-sm">{salvandoLink ? '...' : 'Salvar'}</button>
+              </div>
+              {semArte(post) && <p className="text-xs text-orange-600 mt-1">Esse post já está em fase de entrega e ainda não tem arte linkada.</p>}
+              {post.link_externo && <a href={post.link_externo} target="_blank" rel="noopener noreferrer" className="text-xs text-vinho underline mt-1 inline-block">Abrir link</a>}
+            </div>
+
+            {post.tema && <div><p className="label">Tema</p><p className="text-sm text-gray-700">{post.tema}</p></div>}
+            {post.legenda && <div className="bg-creme rounded-xl p-3"><p className="label">Legenda</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{post.legenda}</p></div>}
+
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => { setPostCompleto(post); setPost(null) }} className="btn-secondary text-sm flex items-center gap-1.5"><Pencil size={14} /> Editar e conversa</button>
+              <button onClick={() => { const c = post.cliente_id; setPost(null); abrirFeed(c) }} className="btn-secondary text-sm flex items-center gap-1.5"><Instagram size={14} /> Ver no feed</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!evento} onClose={() => setEvento(null)}>
+        {evento && (
+          <div className="p-6 space-y-3">
+            <div className="flex items-center justify-between"><h2 className="font-display text-xl font-semibold text-gray-800">{evento.titulo}</h2><button onClick={() => setEvento(null)} className="btn-ghost p-2"><X size={18} /></button></div>
+            <p className="text-sm text-gray-600 flex items-center gap-2"><Clock size={14} />{evento.dia_todo ? 'Dia todo' : format(parseISO(evento.data_inicio), "dd/MM 'às' HH:mm")}</p>
+            {evento.local && <p className="text-sm text-gray-600 flex items-center gap-2"><MapPin size={14} />{evento.local}</p>}
+            {evento.link_online && <a href={evento.link_online} target="_blank" rel="noopener noreferrer" className="text-sm text-vinho flex items-center gap-2"><LinkIcon size={14} /> Entrar na reunião</a>}
+            {evento.descricao && <p className="text-sm text-gray-600">{evento.descricao}</p>}
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={feedAberto} onClose={() => setFeedAberto(false)} largo>
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-xl font-semibold text-vinho">Prévia do feed</h2>
+            <select className="input text-sm py-1.5 w-auto" value={feedCliente} onChange={e => abrirFeed(e.target.value)}>
+              {clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+            <button onClick={() => setFeedAberto(false)} className="btn-ghost p-2"><X size={18} /></button>
+          </div>
+          <p className="text-xs text-gray-400">É assim que o cliente vê o perfil. Posts futuros aparecem com a data. Toque num post pra abrir.</p>
+          {clienteFeed && <FeedPreview nome={clienteFeed.nome} usuario={clienteFeed.instagram} cor={clienteFeed.cor} posts={feedPosts}
+            onSelect={p => { setFeedAberto(false); abrirPost({ ...p, clientes: clienteFeed }) }} />}
         </div>
-      )}
-
-      {/* Modal detalhes post */}
-      <Modal open={tipoDetalhes === 'post' && !!itemDetalhes} onClose={() => { setItemDetalhes(null); setTipoDetalhes(null) }}>
-        {itemDetalhes && tipoDetalhes === 'post' && (
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: itemDetalhes.clientes?.cor }} />
-                <span className="text-sm text-gray-500">{itemDetalhes.clientes?.nome}</span>
-              </div>
-              <button onClick={() => { setItemDetalhes(null); setTipoDetalhes(null) }} className="btn-ghost p-2"><X size={18} /></button>
-            </div>
-
-            <h2 className="font-display text-xl font-semibold text-gray-800 mb-1">{itemDetalhes.titulo}</h2>
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <select
-                value={itemDetalhes.status_interno}
-                disabled={alterandoStatus === itemDetalhes.id}
-                onChange={e => alterarStatus(itemDetalhes.id, e.target.value)}
-                className={cn('text-xs rounded-lg px-2 py-1.5 border-0 font-medium cursor-pointer', STATUS_POST_CORES[itemDetalhes.status_interno])}>
-                {['copy','aguardando_cliente','design','captacao','edicao','aprovacao_arte','aprovado','publicado'].map(s => (
-                  <option key={s} value={s}>{STATUS_POST_LABELS[s]}</option>
-                ))}
-              </select>
-              <span className="badge bg-creme text-gray-600 text-xs capitalize">{itemDetalhes.tipo}</span>
-              {itemDetalhes.data_publicacao && (
-                <span className="text-xs text-gray-400">📅 {formatDate(itemDetalhes.data_publicacao)}</span>
-              )}
-              {itemDetalhes.status_cliente && (
-                <span className={cn('badge text-xs', {
-                  'bg-emerald-100 text-emerald-700': itemDetalhes.status_cliente === 'aprovado',
-                  'bg-red-100 text-red-700': itemDetalhes.status_cliente === 'reprovado',
-                  'bg-orange-100 text-orange-700': itemDetalhes.status_cliente === 'pendente',
-                })}>
-                  Cliente: {itemDetalhes.status_cliente}
-                </span>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              {itemDetalhes.tema && <div><p className="label">Tema</p><p className="text-sm text-gray-700">{itemDetalhes.tema}</p></div>}
-              {itemDetalhes.direcionamento && <div><p className="label">Direcionamento</p><p className="text-sm text-gray-700 whitespace-pre-wrap">{itemDetalhes.direcionamento}</p></div>}
-              {itemDetalhes.copy && (
-                <div className="bg-creme rounded-xl p-3">
-                  <p className="label">Copy / Roteiro</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{itemDetalhes.copy}</p>
-                </div>
-              )}
-              {itemDetalhes.legenda && (
-                <div className="bg-creme rounded-xl p-3">
-                  <p className="label">Legenda</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{itemDetalhes.legenda}</p>
-                </div>
-              )}
-              {itemDetalhes.link_midia && (
-                <div>
-                  <p className="label">Mídia</p>
-                  <a href={itemDetalhes.link_midia} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-vinho hover:text-rosa">
-                    <Paperclip size={14} /> {itemDetalhes.tipo_midia}: {itemDetalhes.link_midia}
-                  </a>
-                </div>
-              )}
-              {itemDetalhes.feedback_cliente && (
-                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
-                  <p className="label text-orange-600">Feedback do cliente</p>
-                  <p className="text-sm text-orange-700">{itemDetalhes.feedback_cliente}</p>
-                </div>
-              )}
-            </div>
-
-            <button onClick={() => { setItemDetalhes(null); setTipoDetalhes(null) }} className="btn-secondary w-full mt-4 justify-center">Fechar</button>
-          </div>
-        )}
       </Modal>
 
-      {/* Modal detalhes evento */}
-      <Modal open={tipoDetalhes === 'evento' && !!itemDetalhes} onClose={() => { setItemDetalhes(null); setTipoDetalhes(null) }}>
-        {itemDetalhes && tipoDetalhes === 'evento' && (
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium" style={{ color: TIPO_EVENTO_CONFIG[itemDetalhes.tipo]?.cor }}>
-                  {TIPO_EVENTO_CONFIG[itemDetalhes.tipo]?.label}
-                </span>
-                {itemDetalhes.clientes?.nome && <span className="text-sm text-gray-400">· {itemDetalhes.clientes.nome}</span>}
-              </div>
-              <button onClick={() => { setItemDetalhes(null); setTipoDetalhes(null) }} className="btn-ghost p-2"><X size={18} /></button>
-            </div>
-
-            <h2 className="font-display text-xl font-semibold text-gray-800 mb-3">{itemDetalhes.titulo}</h2>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Clock size={14} />
-                {itemDetalhes.dia_todo
-                  ? 'Dia todo'
-                  : `${format(parseISO(itemDetalhes.data_inicio), "dd/MM 'às' HH:mm")}${itemDetalhes.data_fim ? ` até ${format(parseISO(itemDetalhes.data_fim), 'HH:mm')}` : ''}`}
-              </div>
-              {itemDetalhes.local && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin size={14} /> {itemDetalhes.local}
-                </div>
-              )}
-              {itemDetalhes.link_online && (
-                <a href={itemDetalhes.link_online} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-vinho hover:underline">
-                  <Link size={14} /> Entrar na reunião online
-                </a>
-              )}
-              {itemDetalhes.descricao && <p className="text-sm text-gray-600">{itemDetalhes.descricao}</p>}
-              {itemDetalhes.observacoes && (
-                <div className="bg-creme rounded-xl p-3">
-                  <p className="text-xs font-medium text-gray-500 mb-1">Observações</p>
-                  <p className="text-sm text-gray-700">{itemDetalhes.observacoes}</p>
-                </div>
-              )}
-              <span className={cn('badge text-xs', {
-                'bg-emerald-100 text-emerald-700': itemDetalhes.status === 'confirmado',
-                'bg-orange-100 text-orange-700': itemDetalhes.status === 'pendente',
-                'bg-red-100 text-red-700': itemDetalhes.status === 'cancelado',
-              })}>{itemDetalhes.status}</span>
-            </div>
-
-            <button onClick={() => { setItemDetalhes(null); setTipoDetalhes(null) }} className="btn-secondary w-full mt-4 justify-center">Fechar</button>
-          </div>
-        )}
-      </Modal>
-      {/* PostModal para edição completa */}
-      {postModalAberto && (
-        <PostModal
-          post={postModalAberto}
-          userId={userId}
-          userName={userName}
-          role="admin"
-          onClose={() => setPostModalAberto(null)}
-          onAtualizado={() => { carregar(); setPostModalAberto(null) }}
-        />
+      {postCompleto && (
+        <PostModal post={postCompleto} userId={userId} userName={userName} role="admin"
+          onClose={() => setPostCompleto(null)} onAtualizado={() => { carregar(); setPostCompleto(null) }} />
       )}
     </div>
   )
