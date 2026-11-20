@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="w-10 lg:hidden" />
           <NotificacoesSino />
         </header>
-        <main className="flex-1 p-4 lg:p-6 max-w-[1400px] w-full mx-auto animate-fade-in">
+        <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6 max-w-[1400px] w-full mx-auto animate-fade-in">
           {children}
         </main>
       </div>
