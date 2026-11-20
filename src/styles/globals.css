@@ -1,19 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Serif:ital@0;1&family=Square+Peg&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --vinho: #6B0F2A;
-  --vinho-dark: #4A0A1E;
-  --vinho-light: #8B1535;
-  --rosa: #C2185B;
-  --rosa-light: #E91E8C;
-  --rosa-pale: #FCE4EC;
-  --offwhite: #FAF7F5;
-  --creme: #F0EBEA;
-  --preto: #1A1A1A;
+  --vinho: #5A1A2B;
+  --vinho-dark: #3F1220;
+  --vinho-light: #8A4458;
+  --rosa: #B0546E;
+  --rosa-light: #C97A90;
+  --rosa-pale: #F5CFC8;
+  --offwhite: #F1E6D2;
+  --creme: #E9DCC4;
+  --lima: #D4F25A;
+  --preto: #2B2224;
   --cinza: #888888;
 }
 
@@ -26,7 +27,7 @@ html {
 }
 
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
   background-color: var(--offwhite);
   color: var(--preto);
   -webkit-font-smoothing: antialiased;
@@ -61,7 +62,7 @@ body {
   }
 
   .btn-secondary {
-    @apply bg-white text-vinho border border-vinho/20 px-4 py-2 rounded-xl font-medium text-sm hover:bg-rosa-pale transition-all duration-200;
+    @apply bg-papel text-vinho border border-vinho/20 px-4 py-2 rounded-xl font-medium text-sm hover:bg-rosa-pale transition-all duration-200;
   }
 
   .btn-ghost {
@@ -73,7 +74,7 @@ body {
   }
 
   .card {
-    @apply bg-white rounded-2xl shadow-card p-5 border border-gray-100;
+    @apply bg-papel rounded-2xl shadow-card p-5 border border-vinho/10;
   }
 
   .card-hover {
@@ -81,7 +82,7 @@ body {
   }
 
   .input {
-    @apply w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-vinho/30 focus:border-vinho transition-all duration-200 bg-white;
+    @apply w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-vinho/30 focus:border-vinho transition-all duration-200 bg-papel;
   }
 
   .label {
@@ -93,10 +94,15 @@ body {
   }
 
   .page-title {
-    @apply font-display text-2xl font-semibold text-vinho;
+    @apply font-display text-3xl italic font-normal text-vinho;
   }
 
   .section-title {
-    @apply font-display text-lg font-semibold text-gray-800;
+    @apply font-display text-xl italic font-normal text-vinho;
   }
 }
+
+/* Identidade BR MKT: ponto REC e títulos em serifa */
+.rec-dot { display:inline-block; width:.45em; height:.45em; border-radius:50%; background:var(--lima); box-shadow:0 0 0 1.5px currentColor; vertical-align:.05em; }
+h1, h2, h3 { font-weight: 600; }
+.font-display { font-weight: 400; letter-spacing: -0.02em; }
