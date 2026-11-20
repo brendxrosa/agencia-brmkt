@@ -156,7 +156,7 @@ export default function FinanceiroPage() {
 
   // ---- NIBS (gestão interna) ----
   const contratoNibs = nibs.find(r => r.mes === 'config')?.obs || ''
-  const mesesNibs = [0, -1, -2, -3, -4, -5].map(n => somaMes(ymHoje, n))
+  const mesesNibs = [0, -1, -2, -3, -4, -5].map(n => somaMes(ymHoje, n)).filter(ym => ym >= '2026-09')
   const rowNibs = (ym: string) => nibs.find(r => r.mes === ym) || { mes: ym, valor: 2000, nf_gerada: false, nf_enviada: false, pago: false }
   async function salvarNibs(ym: string, campos: any) {
     const atual = rowNibs(ym)
