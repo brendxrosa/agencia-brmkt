@@ -6,6 +6,7 @@ import { type Cliente } from '@/types'
 import { formatCurrency, getInitials, cn, CORES_CLIENTES } from '@/lib/utils'
 import { Plus, Search, Users, MoreVertical, Instagram, Phone, Mail, X, FileText, Send, ExternalLink, MessageCircle, Folder, Pencil } from 'lucide-react'
 import ContratoUpload from '@/components/ContratoUpload'
+import ModelosEmail from '@/components/ModelosEmail'
 
 const SEGMENTOS = ['Saúde', 'Beleza', 'Moda', 'Esporte', 'Alimentação', 'Educação', 'Tecnologia', 'Imobiliário', 'Jurídico', 'Outro']
 const PLANOS = ['Básico', 'Intermediário', 'Premium', 'Personalizado']
@@ -305,6 +306,8 @@ async function salvar(f: any) {
                 <div><p className="label">Serviços contratados</p>
                   <div className="flex flex-wrap gap-1.5">{String(d.servicos_contratados).split(',').map((x: string) => <span key={x} className="badge bg-creme text-gray-600 text-xs">{x.trim()}</span>)}</div></div>
               )}
+
+              <ModelosEmail cliente={d} pagamentos={pagsDetalhe} />
 
               <div>
                 <p className="label">Pagamentos</p>
