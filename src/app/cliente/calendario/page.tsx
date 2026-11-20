@@ -7,6 +7,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import PostModal from '@/components/PostModal'
+import FeedPreview from '@/components/FeedPreview'
 
 export default function ClienteCalendarioPage() {
   const supabase = createClient()
@@ -19,6 +20,9 @@ export default function ClienteCalendarioPage() {
   const [userId, setUserId] = useState('')
   const [userName, setUserName] = useState('')
   const [clienteId, setClienteId] = useState('')
+  const [aba, setAba] = useState<'calendario' | 'feed'>('calendario')
+  const [clienteInfo, setClienteInfo] = useState<any>(null)
+  const [feedPosts, setFeedPosts] = useState<any[]>([])
 
   const carregar = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -28,6 +32,12 @@ export default function ClienteCalendarioPage() {
     if (!profile?.cliente_id) return
     setClienteId(profile.cliente_id)
     setUserName(profile.nome || 'Cliente')
+    const [{ data: ci }, { data: fp }] = await Promise.all([
+      supabase.from('clientes').select('nome, instagram, cor').eq('id', profile.cliente_id).single(),
+      supabase.from('posts').select('*').eq('cliente_id', profile.cliente_id).order('data_publicacao', { ascending: false }).limit(60),
+    ])
+    setClienteInfo(ci || null)
+    setFeedPosts(fp || [])
     const inicio = format(startOfMonth(mes), 'yyyy-MM-dd')
     const fim = format(endOfMonth(mes), 'yyyy-MM-dd')
     const [{ data: p }, { data: e }] = await Promise.all([
@@ -60,7 +70,24 @@ export default function ClienteCalendarioPage() {
         <p className="text-gray-500 text-sm mt-1">{posts.length} posts programados este mês</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="flex gap-1 bg-creme rounded-xl p-1 w-fit">
+        {([['calendario', 'Calendário'], ['feed', 'Como fica no feed']] as const).map(([v, l]) => (
+          <button key={v} onClick={() => setAba(v)}
+            className={cn('px-3 py-1.5 rounded-lg text-sm font-medium transition-all', aba === v ? 'bg-papel shadow-card text-vinho' : 'text-gray-500 hover:text-gray-700')}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'feed' && (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500 text-center">É assim que seu perfil vai ficar. Toque em um post pra ver, aprovar ou pedir ajuste.</p>
+          <FeedPreview nome={clienteInfo?.nome || userName || 'Seu perfil'} usuario={clienteInfo?.instagram} cor={clienteInfo?.cor}
+            posts={feedPosts} onSelect={(p: any) => setPostAberto(p)} />
+        </div>
+      )}
+
+      <div className={aba === 'feed' ? 'hidden' : 'grid grid-cols-1 lg:grid-cols-3 gap-5'}>
         {/* Calendário */}
         <div className="lg:col-span-2 card">
           <div className="flex items-center justify-between mb-4">
@@ -189,7 +216,7 @@ export default function ClienteCalendarioPage() {
       </div>
 
       {/* Lista do mês */}
-      {posts.length > 0 && (
+      {aba === 'calendario' && posts.length > 0 && (
         <div className="card">
           <h3 className="section-title text-sm mb-4">Todos os posts do mês</h3>
           <div className="space-y-1">
