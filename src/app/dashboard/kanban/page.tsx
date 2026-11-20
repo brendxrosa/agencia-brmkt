@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import PostModal from '@/components/PostModal'
+import ImportarPlanejamento from '@/components/ImportarPlanejamento'
 import { type Post } from '@/types'
 import { STATUS_POST_LABELS, STATUS_POST_CORES, ETIQUETA_LABELS, cn, formatDate } from '@/lib/utils'
 import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, Save, Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react'
@@ -265,6 +266,7 @@ export default function KanbanPage() {
   const [uploadandoForm, setUploadandoForm] = useState(false)
   const [userId, setUserId] = useState('')
   const [userName, setUserName] = useState('')
+  const [modalPlan, setModalPlan] = useState(false)
   const [modoSelecao, setModoSelecao] = useState(false)
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [modalLote, setModalLote] = useState(false)
@@ -583,6 +585,9 @@ export default function KanbanPage() {
             className={cn('btn-secondary flex items-center gap-2 text-sm', modoSelecao && 'bg-vinho text-white')}>
             <CheckCircle size={15} /> {modoSelecao ? 'Cancelar seleção' : 'Selecionar'}
           </button>
+          <button onClick={() => setModalPlan(true)} className="btn-primary flex items-center gap-2 text-sm">
+            <Upload size={15} /> Importar planejamento
+          </button>
           <button onClick={() => setModalImportar(true)} className="btn-secondary flex items-center gap-2 text-sm">
             <Upload size={15} /> Importar CSV
           </button>
@@ -871,6 +876,8 @@ export default function KanbanPage() {
           )}
         </div>
       </Modal>
+
+      <ImportarPlanejamento open={modalPlan} onClose={() => setModalPlan(false)} clientes={clientes} onConcluido={carregar} />
 
       {/* PostModal com comentários e edição */}
       {postModalKanban && (
