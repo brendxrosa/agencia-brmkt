@@ -34,6 +34,7 @@ export default function FinanceiroPage() {
   const [periodo, setPeriodo] = useState('mes')
   const [mesSel, setMesSel] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bahia' }).slice(0, 7))
   const [nibs, setNibs] = useState<any[]>([])
+  const [das, setDas] = useState<any[]>([])
   const [form, setForm] = useState({
     cliente_id: '', valor: '', mes_referencia: '',
     vencimento: '', status: 'pendente' as Pagamento['status'], observacoes: ''
@@ -47,12 +48,13 @@ export default function FinanceiroPage() {
       if (profile) setUserName(profile.nome)
     }
     const [{ data: p }, { data: c }] = await Promise.all([
-      supabase.from('pagamentos').select('*, clientes(nome, cor, id)').order('vencimento', { ascending: false }),
+      supabase.from('pagamentos').select('*, clientes(nome, cor, id, email)').order('vencimento', { ascending: false }),
       supabase.from('clientes').select('id, nome, valor_mensal, dia_vencimento').eq('status', 'ativo').order('nome')
     ])
     setPagamentos(p || [])
-    const { data: rm } = await supabase.from('rotinas_mensais').select('*').eq('rotina', 'nibs')
-    setNibs(rm || [])
+    const { data: rm } = await supabase.from('rotinas_mensais').select('*')
+    setNibs((rm || []).filter((r: any) => r.rotina === 'nibs'))
+    setDas((rm || []).filter((r: any) => r.rotina === 'das'))
     setClientes(c || [])
     setLoading(false)
   }
@@ -178,6 +180,49 @@ export default function FinanceiroPage() {
     const n = Number(v.replace(',', '.'))
     if (!isNaN(n)) salvarNibs(ym, { valor: n })
   }
+  const dasPago = (ym: string) => !!das.find(r => r.mes === ym)?.pago
+  async function alternarDas(ym: string) {
+    const novo = !dasPago(ym)
+    const { error } = await supabase.from('rotinas_mensais').upsert({ rotina: 'das', mes: ym, valor: 0, pago: novo, data_pagamento: novo ? hojeStr : null }, { onConflict: 'rotina,mes' })
+    if (error) return alert('Não consegui salvar: ' + error.message)
+    carregar()
+  }
+  const EMISSOR = 'https://www.nfse.gov.br/EmissorNacional/Login'
+  async function copiarEAbrir(texto: string) {
+    try { await navigator.clipboard.writeText(texto) } catch { window.prompt('Copie a descrição da nota:', texto) }
+    window.open(EMISSOR, '_blank')
+    alert('Descrição copiada. No Emissor Nacional é só colar no campo de descrição do serviço.')
+  }
+  function gerarNotaNibs(ym: string) {
+    const r: any = rowNibs(ym)
+    const [a, m] = ym.split('-').map(Number)
+    const ant = somaMes(ym, -1)
+    const [aa, ma] = ant.split('-').map(Number)
+    const p = (n: number) => String(n).padStart(2, '0')
+    copiarEAbrir('Serviços de Social Media prestados no período de 21/' + p(ma) + '/' + aa + ' a 21/' + p(m) + '/' + a + '. Valor: ' + formatCurrency(Number(r.valor ?? 2000)) + '.')
+  }
+  function gerarNotaPag(pag: any) {
+    copiarEAbrir('Serviços de gestão de redes sociais e marketing para ' + (pag.clientes?.nome || 'o cliente') + ', referente a ' + (pag.mes_referencia || 'mensalidade') + '. Valor: ' + formatCurrency(pag.valor) + '.')
+  }
+  function textoRecibo(pag: any) {
+    const nomeC = pag.clientes?.nome || 'cliente'
+    const pagoEm = formatDate(pag.data_pagamento || pag.vencimento)
+    return 'Recebi de ' + nomeC + ' a quantia de ' + formatCurrency(pag.valor) + ', referente a ' + (pag.mes_referencia || 'serviços prestados') + ', em ' + pagoEm + '. Dou plena quitação.'
+  }
+  function reciboPag(pag: any) {
+    const w = window.open('', '_blank')
+    if (!w) return alert('O navegador bloqueou a janela. Libere pop-ups para este site.')
+    const corpo = textoRecibo(pag)
+    w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600&family=Instrument+Serif:ital@0;1&display=swap"><style>body{margin:0;background:#F1E6D2;color:#5A1A2B;font-family:Bricolage Grotesque,sans-serif}.p{max-width:680px;margin:40px auto;background:#FBF6EC;padding:48px;border:1px solid rgba(90,26,43,.2)}h1{font-family:Instrument Serif,serif;font-style:italic;font-weight:400;font-size:64px;margin:0 0 4px;letter-spacing:-.04em}.v{font-size:34px;font-weight:600;margin:28px 0}p{font-size:17px;line-height:1.6}.a{margin-top:60px;font-family:Instrument Serif,serif;font-style:italic;font-size:26px;border-top:1px solid #5A1A2B;padding-top:8px;width:60%}small{opacity:.7}@media print{body{background:#fff}.p{border:0;margin:0}.n{display:none}}</style></head><body><div class="p"><small>BRENDA ROSA MARKETING · ESTRATÉGIA &amp; IMAGEM</small><h1>Recibo</h1><div class="v">' + formatCurrency(pag.valor) + '</div><p>' + corpo + '</p><div class="a">Brenda Rosa<br><small style="font-family:Bricolage Grotesque,sans-serif;font-style:normal;font-size:13px">Brenda Rosa Marketing</small></div><p class="n" style="margin-top:40px"><button onclick="window.print()" style="background:#5A1A2B;color:#F1E6D2;border:0;padding:10px 18px;border-radius:10px;font-size:15px;cursor:pointer">Imprimir / salvar em PDF</button></p></div></body></html>')
+    w.document.close()
+  }
+  function emailRecibo(pag: any) {
+    const email = pag.clientes?.email
+    if (!email) return alert('Esse cliente está sem e-mail cadastrado.')
+    const assunto = 'Recibo de pagamento · ' + (pag.mes_referencia || 'Brenda Rosa Marketing')
+    const corpo = 'Oi, ' + (pag.clientes?.nome || '') + '! Tudo bem?\n\nConfirmando o recebimento do pagamento de ' + formatCurrency(pag.valor) + ' referente a ' + (pag.mes_referencia || 'sua mensalidade') + '. Obrigada! O recibo segue em anexo.\n\nUm abraço,\nBrenda Rosa\nBrenda Rosa Marketing'
+    window.location.href = 'mailto:' + email + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo)
+  }
   function definirContratoNibs() {
     const v = window.prompt('Link do contrato da NIBS (Drive):', contratoNibs)
     if (v === null) return
@@ -292,11 +337,19 @@ export default function FinanceiroPage() {
                   <Pill campo="nf_gerada" rotulo="Nota gerada" />
                   <Pill campo="nf_enviada" rotulo="Nota enviada" />
                   <Pill campo="pago" rotulo="Pago" />
+                  <button onClick={() => gerarNotaNibs(ym)} className="text-xs px-2.5 py-1.5 rounded-full bg-vinho text-white hover:bg-vinho-light">Gerar nota</button>
                 </div>
                 <p className="text-xs text-gray-500 flex-1 min-w-40">{dicaNibs(ym)}</p>
               </div>
             )
           })}
+        </div>
+        <div className="flex items-center gap-3 flex-wrap rounded-xl px-3 py-2 border-t border-vinho/10">
+          <div className="w-28"><p className="font-semibold text-sm text-vinho">DAS do MEI</p><p className="text-xs text-gray-500">vence dia 20</p></div>
+          <button onClick={() => alternarDas(ymHoje)}
+            className={cn('text-xs px-2.5 py-1.5 rounded-full border transition-all', dasPago(ymHoje) ? 'bg-lima text-vinho border-vinho/30 font-semibold' : 'bg-papel text-gray-500 border-vinho/15 hover:bg-rosa-pale')}>
+            {dasPago(ymHoje) ? '✓ ' : ''}DAS de {MESES[Number(ymHoje.slice(5)) - 1]} pago
+          </button>
         </div>
       </div>
 
@@ -353,6 +406,13 @@ export default function FinanceiroPage() {
                 </div>
                 <p className="font-bold text-gray-800 flex-shrink-0">{formatCurrency(pag.valor)}</p>
                 <div className="flex gap-1 items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                  {pag.status === 'pago' && (
+                    <>
+                      <button onClick={() => reciboPag(pag)} className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">Recibo</button>
+                      <button onClick={() => emailRecibo(pag)} className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">E-mail</button>
+                    </>
+                  )}
+                  <button onClick={() => gerarNotaPag(pag)} className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">Nota</button>
                   {pag.status !== 'pago' && (
                     <button onClick={() => copiarCobranca(pag)}
                       className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">
