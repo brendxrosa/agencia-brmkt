@@ -10,26 +10,31 @@ const config: Config = {
     extend: {
       colors: {
         vinho: {
-          DEFAULT: '#6B0F2A',
-          dark: '#4A0A1E',
-          light: '#8B1535',
+          DEFAULT: '#5A1A2B',
+          dark: '#3F1220',
+          light: '#8A4458',
         },
         rosa: {
-          DEFAULT: '#C2185B',
-          light: '#E91E8C',
-          pale: '#FCE4EC',
+          DEFAULT: '#B0546E',
+          light: '#C97A90',
+          pale: '#F5CFC8',
         },
-        offwhite: '#FAF7F5',
-        creme: '#F0EBEA',
+        offwhite: '#F1E6D2',
+        creme: '#E9DCC4',
+        lima: '#D4F25A',
+        tinta: '#2B2224',
+        musgo: '#4F5A2B',
+        papel: '#FBF6EC',
       },
       fontFamily: {
-        display: ['Playfair Display', 'Georgia', 'serif'],
-        body: ['DM Sans', 'system-ui', 'sans-serif'],
+        display: ['Instrument Serif', 'Georgia', 'serif'],
+        body: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
+        mao: ['Square Peg', 'cursive'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       boxShadow: {
-        'card': '0 2px 8px rgba(107,15,42,0.08)',
-        'card-hover': '0 8px 24px rgba(107,15,42,0.14)',
+        'card': '0 2px 8px rgba(90,26,43,0.08)',
+        'card-hover': '0 8px 24px rgba(90,26,43,0.14)',
         'modal': '0 20px 60px rgba(0,0,0,0.25)',
       },
       borderRadius: {
