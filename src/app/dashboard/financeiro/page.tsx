@@ -31,6 +31,9 @@ export default function FinanceiroPage() {
   const [userId, setUserId] = useState('')
   const [userName, setUserName] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [periodo, setPeriodo] = useState('mes')
+  const [mesSel, setMesSel] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bahia' }).slice(0, 7))
+  const [nibs, setNibs] = useState<any[]>([])
   const [form, setForm] = useState({
     cliente_id: '', valor: '', mes_referencia: '',
     vencimento: '', status: 'pendente' as Pagamento['status'], observacoes: ''
@@ -48,6 +51,8 @@ export default function FinanceiroPage() {
       supabase.from('clientes').select('id, nome, valor_mensal, dia_vencimento').eq('status', 'ativo').order('nome')
     ])
     setPagamentos(p || [])
+    const { data: rm } = await supabase.from('rotinas_mensais').select('*').eq('rotina', 'nibs')
+    setNibs(rm || [])
     setClientes(c || [])
     setLoading(false)
   }
@@ -130,10 +135,74 @@ export default function FinanceiroPage() {
 
   const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bahia' })
   const efetivo = (p: any) => (p.status === 'pendente' && p.vencimento && String(p.vencimento).slice(0, 10) < hojeStr) ? 'atrasado' : p.status
-  const filtrados = filtroStatus === 'todos' ? pagamentos : pagamentos.filter(p => efetivo(p) === filtroStatus)
-  const totalPendente = pagamentos.filter(p => efetivo(p) === 'pendente').reduce((s, p) => s + (p.valor || 0), 0)
+  const ymHoje = hojeStr.slice(0, 7)
+  const somaMes = (ym: string, n: number) => { const [a, m] = ym.split('-').map(Number); const d = new Date(a, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') }
+  const ini = periodo === 'tudo' ? '0000-00' : periodo === '3m' ? somaMes(ymHoje, -2) : periodo === '12m' ? somaMes(ymHoje, -11) : periodo === 'custom' ? mesSel : ymHoje
+  const fim = periodo === 'custom' ? mesSel : ymHoje
+  const noPeriodo = (d: any) => { const m = String(d || '').slice(0, 7); return !!m && m >= ini && m <= fim }
+  const rotuloPeriodo = periodo === 'mes' ? 'este mês' : periodo === '3m' ? 'últimos 3 meses' : periodo === '12m' ? 'últimos 12 meses' : periodo === 'tudo' ? 'todo o período' : 'o mês escolhido'
+  const dataRecebido = (p: any) => p.data_pagamento || p.vencimento
+  const nibsPagos = nibs.filter(r => r.pago && noPeriodo(r.data_pagamento || (r.mes + '-15')))
+  const filtrados = pagamentos
+    .filter(p => noPeriodo(p.vencimento) || efetivo(p) === 'atrasado')
+    .filter(p => filtroStatus === 'todos' || efetivo(p) === filtroStatus)
+  const totalPendente = pagamentos.filter(p => efetivo(p) === 'pendente' && noPeriodo(p.vencimento)).reduce((s, p) => s + (p.valor || 0), 0)
   const totalAtrasado = pagamentos.filter(p => efetivo(p) === 'atrasado').reduce((s, p) => s + (p.valor || 0), 0)
-  const totalPago = pagamentos.filter(p => p.status === 'pago').reduce((s, p) => s + (p.valor || 0), 0)
+  const recebidoClientes = pagamentos.filter(p => p.status === 'pago' && noPeriodo(dataRecebido(p))).reduce((s, p) => s + (p.valor || 0), 0)
+  const recebidoNibs = nibsPagos.reduce((s, r) => s + (Number(r.valor) || 0), 0)
+  const totalPago = recebidoClientes + recebidoNibs
+
+  // ---- NIBS (gestão interna) ----
+  const contratoNibs = nibs.find(r => r.mes === 'config')?.obs || ''
+  const mesesNibs = [0, -1, -2, -3, -4, -5].map(n => somaMes(ymHoje, n))
+  const rowNibs = (ym: string) => nibs.find(r => r.mes === ym) || { mes: ym, valor: 2000, nf_gerada: false, nf_enviada: false, pago: false }
+  async function salvarNibs(ym: string, campos: any) {
+    const atual = rowNibs(ym)
+    const base = { rotina: 'nibs', mes: ym, valor: atual.valor ?? 2000, nf_gerada: !!atual.nf_gerada, nf_enviada: !!atual.nf_enviada, pago: !!atual.pago, data_pagamento: atual.data_pagamento || null }
+    const { error } = await supabase.from('rotinas_mensais').upsert({ ...base, ...campos }, { onConflict: 'rotina,mes' })
+    if (error) return alert('Não consegui salvar: ' + error.message)
+    carregar()
+  }
+  function alternarNibs(ym: string, campo: 'nf_gerada' | 'nf_enviada' | 'pago') {
+    const r: any = rowNibs(ym)
+    const novo = !r[campo]
+    const extra: any = campo === 'pago' ? { data_pagamento: novo ? hojeStr : null } : {}
+    if (campo === 'nf_enviada' && novo) extra.nf_gerada = true
+    if (campo === 'pago' && novo) { extra.nf_gerada = true; extra.nf_enviada = true }
+    salvarNibs(ym, { [campo]: novo, ...extra })
+  }
+  function editarValorNibs(ym: string) {
+    const r: any = rowNibs(ym)
+    const v = window.prompt('Valor da NIBS em ' + ym + ':', String(r.valor ?? 2000))
+    if (v === null) return
+    const n = Number(v.replace(',', '.'))
+    if (!isNaN(n)) salvarNibs(ym, { valor: n })
+  }
+  function definirContratoNibs() {
+    const v = window.prompt('Link do contrato da NIBS (Drive):', contratoNibs)
+    if (v === null) return
+    supabase.from('rotinas_mensais').upsert({ rotina: 'nibs', mes: 'config', obs: v.trim() || null }, { onConflict: 'rotina,mes' }).then(() => carregar())
+  }
+  function quintoDecimoQuintoUtil(ym: string) {
+    const [a, m] = ym.split('-').map(Number)
+    let c = 0
+    for (let d = 1; d <= 31; d++) {
+      const dt = new Date(a, m - 1, d)
+      if (dt.getMonth() !== m - 1) break
+      const w = dt.getDay()
+      if (w !== 0 && w !== 6) { c++; if (c === 15) return a + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0') }
+    }
+    return ''
+  }
+  function dicaNibs(ym: string) {
+    const r: any = rowNibs(ym)
+    if (r.pago) return 'Tudo certo, pago ✓'
+    const limNF = ym + '-15'
+    const limPag = quintoDecimoQuintoUtil(ym)
+    if (!r.nf_gerada) return hojeStr > limNF && ym <= ymHoje ? 'Nota ainda não gerada (o ideal era antes do dia 15)' : 'Gerar a nota nos dias 11 e 12'
+    if (!r.nf_enviada) return hojeStr > limNF && ym <= ymHoje ? 'Nota gerada, mas ainda não enviada (ideal antes do dia 15)' : 'Falta enviar a nota (antes do dia 15)'
+    return limPag ? 'Aguardando pagamento até ' + formatDate(limPag) + ' (15º dia útil)' : 'Aguardando pagamento'
+  }
 
   const STATUS_CONFIG: Record<string, { label: string; cor: string; icon: any }> = {
     pendente: { label: 'Pendente', cor: 'bg-orange-100 text-orange-700', icon: Clock },
@@ -159,6 +228,23 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
+      {/* Período */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 bg-creme rounded-xl p-1 w-fit">
+          {[['mes','Este mês'],['3m','3 meses'],['12m','12 meses'],['tudo','Tudo'],['custom','Escolher mês']].map(([v,l]) => (
+            <button key={v} onClick={() => setPeriodo(v)}
+              className={cn('px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                periodo === v ? 'bg-papel shadow-card text-vinho' : 'text-gray-500 hover:text-gray-700')}>
+              {l}
+            </button>
+          ))}
+        </div>
+        {periodo === 'custom' && (
+          <input type="month" className="input w-auto" value={mesSel} onChange={e => e.target.value && setMesSel(e.target.value)} />
+        )}
+        <span className="text-xs text-gray-400">Mostrando {rotuloPeriodo}. Atrasados aparecem sempre.</span>
+      </div>
+
       {/* Cards resumo */}
       <div className="grid grid-cols-3 gap-4">
         {[
@@ -171,6 +257,47 @@ export default function FinanceiroPage() {
             <p className={cn('text-lg font-bold font-display', cor)}>{formatCurrency(valor)}</p>
           </div>
         ))}
+      </div>
+
+      {/* NIBS: gestão interna */}
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="section-title">NIBS · nota e pagamento</h2>
+            <p className="text-xs text-gray-500">Só pra você: emitir a nota (dias 11 e 12), enviar antes do dia 15 e acompanhar o pagamento (até o 15º dia útil).</p>
+          </div>
+          <div className="flex gap-2">
+            {contratoNibs && <a href={contratoNibs} target="_blank" rel="noreferrer" className="btn-secondary text-sm">Abrir contrato</a>}
+            <button onClick={definirContratoNibs} className="btn-ghost text-sm">{contratoNibs ? 'Trocar link do contrato' : 'Colocar link do contrato'}</button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {mesesNibs.map((ym, i) => {
+            const r: any = rowNibs(ym)
+            const [a, m] = ym.split('-').map(Number)
+            const Pill = ({ campo, rotulo }: { campo: 'nf_gerada' | 'nf_enviada' | 'pago'; rotulo: string }) => (
+              <button onClick={() => alternarNibs(ym, campo)}
+                className={cn('text-xs px-2.5 py-1.5 rounded-full border transition-all',
+                  r[campo] ? 'bg-lima text-vinho border-vinho/30 font-semibold' : 'bg-papel text-gray-500 border-vinho/15 hover:bg-rosa-pale')}>
+                {r[campo] ? '✓ ' : ''}{rotulo}
+              </button>
+            )
+            return (
+              <div key={ym} className={cn('flex items-center gap-3 flex-wrap rounded-xl px-3 py-2', i === 0 ? 'bg-creme' : '')}>
+                <div className="w-28">
+                  <p className="font-semibold text-sm text-vinho">{MESES[m - 1]} {a}</p>
+                  <button onClick={() => editarValorNibs(ym)} className="text-xs text-gray-500 hover:underline">{formatCurrency(Number(r.valor ?? 2000))}</button>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Pill campo="nf_gerada" rotulo="Nota gerada" />
+                  <Pill campo="nf_enviada" rotulo="Nota enviada" />
+                  <Pill campo="pago" rotulo="Pago" />
+                </div>
+                <p className="text-xs text-gray-500 flex-1 min-w-40">{dicaNibs(ym)}</p>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {!loading && faltandoMes().length > 0 && (
