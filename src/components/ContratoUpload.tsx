@@ -116,9 +116,10 @@ Se algum campo não estiver no contrato, omita-o do JSON. Datas sempre no format
         }]
       }
 
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/claude-extract', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (session?.access_token || '') },
         body: JSON.stringify(body)
       })
 
