@@ -6,7 +6,11 @@ export const maxDuration = 60
 export async function POST(req: NextRequest) {
   // Só usuários logados podem usar a chave da Anthropic
   const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  let { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+    if (token) user = (await supabase.auth.getUser(token)).data.user
+  }
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   try {
