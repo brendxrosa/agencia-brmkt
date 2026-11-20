@@ -210,19 +210,46 @@ export default function FinanceiroPage() {
     const pagoEm = formatDate(pag.data_pagamento || pag.vencimento)
     return 'Recebi de ' + nomeC + ' a quantia de ' + formatCurrency(pag.valor) + ', referente a ' + (pag.mes_referencia || 'serviços prestados') + ', em ' + pagoEm + '. Dou plena quitação.'
   }
-  function reciboPag(pag: any) {
+  function docPag(pag: any, tipo: 'fatura' | 'recibo') {
     const w = window.open('', '_blank')
     if (!w) return alert('O navegador bloqueou a janela. Libere pop-ups para este site.')
-    const nomeC = pag.clientes?.nome || 'Cliente'
-    const ref = pag.mes_referencia || 'Serviços prestados'
-    const pagoEm = formatDate(pag.data_pagamento || pag.vencimento)
+    const esc = function (t: any) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;') }
+    const ehRecibo = tipo === 'recibo'
+    const nomeC = esc(pag.clientes?.nome || 'Cliente')
+    const emailC = esc(pag.clientes?.email || '')
+    const ref = esc(pag.mes_referencia || '')
+    const desc = 'Gestão de redes sociais e marketing' + (pag.mes_referencia ? ' · ' + pag.mes_referencia : '')
     const num = String(pag.id || '').slice(0, 6).toUpperCase()
-    const logo = '<svg viewBox="0 0 533 133" width="300" aria-label="Brenda Rosa Marketing" style="display:block;overflow:visible"><text x="266" y="62" text-anchor="middle" font-family="Instrument Serif, serif" font-size="78" letter-spacing="-2.8" fill="#5A1A2B">BRENDA ROSA</text><circle cx="68" cy="101" r="4.5" fill="#D4F25A" stroke="#5A1A2B" stroke-width="1.5"/><text x="80" y="106" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="600" letter-spacing="4" fill="#5A1A2B">ESTRATÉGIA &amp; IMAGEM</text><g transform="rotate(-5 347 93)" font-family="Herr Von Muellerhoff, cursive" font-size="49" stroke-linejoin="round"><text x="347" y="93" fill="#5A1A2B" stroke="#5A1A2B" stroke-width="9">marketing</text><text x="347" y="93" fill="#F1E6D2" stroke="#F1E6D2" stroke-width="7">marketing</text><text x="347" y="93" fill="#5A1A2B">marketing</text></g></svg>'
-    const linha = function (k: string, val: string) { return '<div class="l"><span>' + k + '</span><b>' + val + '</b></div>' }
-    const css = '@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#F1E6D2;color:#5A1A2B;font-family:Bricolage Grotesque,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pg{width:794px;min-height:1000px;margin:0 auto;padding:56px 64px 110px;position:relative}.cab{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #5A1A2B;padding-bottom:22px}.no{font-size:12px;letter-spacing:.18em;text-align:right;line-height:1.7}h1{font-family:Instrument Serif,serif;font-weight:400;font-size:84px;line-height:.95;letter-spacing:-.04em;margin:56px 0 36px}h1 i{font-style:italic}.l{display:flex;justify-content:space-between;gap:24px;padding:16px 0;border-bottom:1px solid rgba(90,26,43,.25);font-size:16px}.l span{font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.7;padding-top:3px}.l b{font-weight:600;text-align:right}.v{font-family:Instrument Serif,serif;font-size:64px;letter-spacing:-.03em;margin:34px 0 10px}.t{font-size:16px;line-height:1.6;max-width:560px}.a{margin-top:70px;width:260px;border-top:1px solid #5A1A2B;padding-top:8px;font-family:Instrument Serif,serif;font-style:italic;font-size:26px}.a small{display:block;font-family:Bricolage Grotesque,sans-serif;font-style:normal;font-size:12px;letter-spacing:.12em;opacity:.7}.rod{position:absolute;left:64px;right:64px;bottom:36px;display:flex;justify-content:space-between;font-size:12px;letter-spacing:.08em;border-top:1px solid rgba(90,26,43,.3);padding-top:12px}.bt{position:fixed;right:16px;top:16px}.bt button{background:#5A1A2B;color:#F1E6D2;border:0;padding:10px 18px;border-radius:10px;font-size:15px;cursor:pointer}@media print{.bt{display:none}}'
-    const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo ' + num + '</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600&family=Instrument+Serif:ital@0;1&family=Herr+Von+Muellerhoff&display=swap"><style>' + css + '</style></head><body><div class="bt"><button onclick="window.print()">Imprimir / salvar em PDF</button></div><div class="pg"><div class="cab">' + logo + '<div class="no">RECIBO Nº ' + num + '<br>' + pagoEm + '</div></div><h1>Recibo de<br><i>pagamento</i></h1>' + linha('Recebido de', nomeC) + linha('Referente a', ref) + linha('Data do pagamento', pagoEm) + '<div class="v">' + formatCurrency(pag.valor) + '</div><p class="t">Recebi de ' + nomeC + ' a quantia acima, referente a ' + ref + '. Dou plena quitação.</p><div class="a">Brenda Rosa<small>BRENDA ROSA MARKETING</small></div><div class="rod"><span>@brendarosa.mkt</span><span>Estratégia &amp; Imagem</span></div></div></body></html>'
+    const valor = formatCurrency(pag.valor)
+    const logo = '<svg viewBox="0 0 533 133" width="250" aria-label="Brenda Rosa Marketing" style="display:block;overflow:visible"><text x="266" y="62" text-anchor="middle" font-family="Instrument Serif, serif" font-size="78" letter-spacing="-2.8" fill="#5A1A2B">BRENDA ROSA</text><circle cx="68" cy="101" r="4.5" fill="#D4F25A" stroke="#5A1A2B" stroke-width="1.5"/><text x="80" y="106" font-family="Bricolage Grotesque, sans-serif" font-size="14" font-weight="600" letter-spacing="4" fill="#5A1A2B">ESTRATÉGIA &amp; IMAGEM</text><g transform="rotate(-5 347 93)" font-family="Herr Von Muellerhoff, cursive" font-size="49" stroke-linejoin="round"><text x="347" y="93" fill="#5A1A2B" stroke="#5A1A2B" stroke-width="9">marketing</text><text x="347" y="93" fill="#F1E6D2" stroke="#F1E6D2" stroke-width="7">marketing</text><text x="347" y="93" fill="#5A1A2B">marketing</text></g></svg>'
+    const grao = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E\")"
+    const css = ':root{--cr:#F1E6D2;--bo:#5A1A2B;--li:#D4F25A;--rq:#B0546E;--sans:Bricolage Grotesque,sans-serif;--serif:Instrument Serif,serif}*{box-sizing:border-box}body{margin:0;background:#BFB09A;font-family:var(--sans);color:var(--bo);-webkit-font-smoothing:antialiased;-webkit-print-color-adjust:exact;print-color-adjust:exact}.wrapz{display:flex;justify-content:center;padding:28px 0}.pg{width:794px;height:1123px;position:relative;overflow:hidden;padding:46px 64px 40px;display:flex;flex-direction:column;background:var(--cr);box-shadow:0 14px 40px rgba(0,0,0,.2)}.pg::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.075;mix-blend-mode:multiply;background-image:' + grao + ';z-index:30}.pg>*{position:relative;z-index:2}.cap{font-size:8.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:600}.foot{margin-top:auto;display:flex;justify-content:space-between;font-size:8.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:600;padding-top:10px;border-top:.75px solid currentColor}p{font-size:12.5px;line-height:1.65;margin:0;font-weight:350}.row{display:grid;grid-template-columns:150px 1fr;gap:24px;padding:14px 0;border-bottom:.75px solid rgba(90,26,43,.35);align-items:baseline}.row .k{font-size:8.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:600}.row .v{font-size:12.5px;line-height:1.6}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:11px 4px;border-bottom:.75px solid rgba(90,26,43,.35);text-align:left;vertical-align:top}th{font-size:8.5px;letter-spacing:.24em;text-transform:uppercase;font-weight:600;border-bottom:.75px solid var(--bo)}.bt{position:fixed;right:16px;top:16px;z-index:50}.bt button{background:#5A1A2B;color:#F1E6D2;border:0;padding:10px 18px;border-radius:10px;font-size:15px;cursor:pointer}@page{size:A4;margin:0}@media print{body{background:none}.wrapz{display:block;padding:0}.pg{box-shadow:none}.bt{display:none}}'
+    const emissao = formatDate(hojeStr)
+    const pagoEm = formatDate(pag.data_pagamento || pag.vencimento)
+    const bloco = function (k: string, v: string) { return '<div style="padding:14px 0"><div class="cap" style="opacity:.7">' + k + '</div><div style="font-size:13px;margin-top:4px">' + v + '</div></div>' }
+    const terceira = ehRecibo ? bloco('Pago em', pagoEm) : bloco('Vencimento', formatDate(pag.vencimento))
+    const pagamento = ehRecibo
+      ? '<div class="row" style="border-top:.75px solid var(--bo)"><span class="k">Situação</span><span class="v">Pago em ' + pagoEm + '. Dou plena quitação.</span></div>'
+      : '<div class="row" style="border-top:.75px solid var(--bo)"><span class="k">PIX (CNPJ)</span><span class="v">56.076.817/0001-06</span></div><div class="row"><span class="k">Outras formas</span><span class="v">Boleto ou link de pagamento, enviado por e-mail</span></div>'
+    const obs = pag.observacoes ? '<div class="row"><span class="k">Observações</span><span class="v">' + esc(pag.observacoes) + '</span></div>' : ''
+    const html = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>' + (ehRecibo ? 'Recibo' : 'Fatura') + ' ' + num + '</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@350;400;600&family=Instrument+Serif:ital@0;1&family=Herr+Von+Muellerhoff&display=swap"><style>' + css + '</style></head><body><div class="bt"><button onclick="window.print()">Imprimir / salvar em PDF</button></div><div class="wrapz"><div class="pg">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:22px;border-bottom:.75px solid var(--bo)">' + logo + '<div style="text-align:right"><div class="cap" style="opacity:.7">Nº ' + num + '</div><div style="font-family:var(--serif);font-size:64px;line-height:.9;letter-spacing:-.03em;margin-top:6px"><i style="color:var(--rq)">' + (ehRecibo ? 'Recibo' : 'Fatura') + '</i></div></div></div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:.75px solid rgba(90,26,43,.35)">' + bloco('Emissão', emissao) + bloco('Competência', ref || '-') + terceira + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:36px;margin-top:34px"><div><div class="cap" style="margin-bottom:10px">De</div><div style="border-top:.75px solid var(--bo);padding-top:12px"><p><b style="font-weight:600">Brenda Rosa Nascimento de Jesus</b><br>Brenda Rosa Marketing<br>CNPJ 56.076.817/0001-06<br>Salvador · BA<br>contatobrendarosa@gmail.com<br>(71) 99234-6507</p></div></div>'
+      + '<div><div class="cap" style="margin-bottom:10px">Para</div><div style="border-top:.75px solid var(--bo);padding-top:12px"><p><b style="font-weight:600">' + nomeC + '</b>' + (emailC ? '<br>' + emailC : '') + '</p></div></div></div>'
+      + '<table style="margin-top:44px"><tr><th>Descrição</th><th style="text-align:center;width:70px">Qtd.</th><th style="text-align:right;width:140px">Valor</th></tr><tr><td>' + esc(desc) + '</td><td style="text-align:center">1</td><td style="text-align:right">' + valor + '</td></tr></table>'
+      + '<div style="display:flex;justify-content:flex-end;margin-top:26px"><div style="background:var(--bo);color:var(--cr);border-radius:10px;padding:18px 26px;display:flex;gap:34px;align-items:baseline"><span class="cap">Total</span><span style="font-family:var(--serif);font-size:40px;line-height:1">' + valor + '</span></div></div>'
+      + '<div style="margin-top:44px"><div class="cap" style="margin-bottom:10px">' + (ehRecibo ? 'Quitação' : 'Pagamento') + '</div>' + pagamento + obs + '</div>'
+      + '<div class="foot"><span>(71) 99234-6507 · contatobrendarosa@gmail.com</span><span>@brendarosa.mkt</span></div></div></div></body></html>'
     w.document.write(html)
     w.document.close()
+  }
+  function reciboPag(pag: any) { docPag(pag, 'recibo') }
+  function faturaPag(pag: any) { docPag(pag, 'fatura') }
+  async function alternarFaturaEnviada(pag: any) {
+    const { error } = await supabase.from('pagamentos').update({ fatura_enviada: !pag.fatura_enviada }).eq('id', pag.id)
+    if (error) return alert('Não consegui salvar: ' + error.message)
+    carregar()
   }
   function emailRecibo(pag: any) {
     const email = pag.clientes?.email
@@ -409,6 +436,10 @@ export default function FinanceiroPage() {
                     <span className={cn('badge text-xs flex items-center gap-1', config.cor)}>
                       <Icon size={10} /> {config.label}
                     </span>
+                    <button onClick={() => alternarFaturaEnviada(pag)}
+                      className={cn('text-xs px-2 py-0.5 rounded-full border transition-all', pag.fatura_enviada ? 'bg-lima text-vinho border-vinho/30 font-semibold' : 'bg-papel text-gray-400 border-vinho/15 hover:bg-rosa-pale')}>
+                      {pag.fatura_enviada ? '✓ Fatura enviada' : 'Fatura não enviada'}
+                    </button>
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {pag.mes_referencia && `${pag.mes_referencia} · `}
@@ -423,6 +454,9 @@ export default function FinanceiroPage() {
                       <button onClick={() => reciboPag(pag)} className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">Recibo</button>
                       <button onClick={() => emailRecibo(pag)} className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">E-mail</button>
                     </>
+                  )}
+                  {pag.status !== 'pago' && (
+                    <button onClick={() => faturaPag(pag)} className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">Fatura</button>
                   )}
                   <button onClick={() => gerarNotaPag(pag)} className="text-xs bg-creme text-gray-700 px-2.5 py-1.5 rounded-xl hover:bg-rosa-pale transition-all">Nota</button>
                   {pag.status !== 'pago' && (
