@@ -72,7 +72,9 @@ export default async function DashboardPage() {
     supabase.from('eventos').select('id, titulo, data_inicio, tipo, clientes(nome, cor)').eq('status', 'pendente'),
   ])
 
-  const abertos = (posts || []).filter((p: any) => !FINALIZADOS.includes(p.status_interno))
+  const nomesAtivos = new Set((clientes || []).map((c: any) => c.nome))
+  const so = (arr: any[] | null) => (arr || []).filter((x: any) => !x.clientes?.nome || nomesAtivos.has(x.clientes.nome))
+  const abertos = so(posts).filter((p: any) => !FINALIZADOS.includes(p.status_interno))
   const dia = (p: any) => String(p.data_publicacao).slice(0, 10)
   const nome = (p: any) => p.clientes?.nome || ''
   const dias = (iso?: string) => iso ? Math.max(0, differenceInDays(new Date(), new Date(iso))) : 0
@@ -90,13 +92,13 @@ export default async function DashboardPage() {
     else if (d === amanha) add({ ...base, titulo, quando: 'Sai amanhã', grupo: 'week' })
     else add({ ...base, titulo, quando: 'Sai ' + formatDate(d, 'dd/MM'), grupo: 'week' })
   })
-  ;(posts || []).filter((p: any) => p.status_interno === 'alteracao' || p.status_cliente === 'reprovado').forEach((p: any) =>
+  ;so(posts).filter((p: any) => p.status_interno === 'alteracao' || p.status_cliente === 'reprovado').forEach((p: any) =>
     add({ key: 'a' + p.id, href: '/dashboard/kanban', cor: p.clientes?.cor, titulo: nome(p) + ' · ' + p.titulo, quando: 'Cliente pediu ajuste', area: 'Conteúdo', grupo: 'today' }))
-  ;(posts || []).filter((p: any) => p.status_interno === 'aprovado' && dia(p) <= daqui7).forEach((p: any) =>
+  ;so(posts).filter((p: any) => p.status_interno === 'aprovado' && dia(p) <= daqui7).forEach((p: any) =>
     add({ key: 'ap' + p.id, href: '/dashboard/kanban', cor: p.clientes?.cor, titulo: nome(p) + ' · ' + p.titulo, quando: 'Aprovado, pode agendar', area: 'Conteúdo', grupo: 'week' }))
-  ;(posts || []).filter((p: any) => ['aguardando_cliente', 'aprovacao_arte'].includes(p.status_interno)).forEach((p: any) =>
+  ;so(posts).filter((p: any) => ['aguardando_cliente', 'aprovacao_arte'].includes(p.status_interno)).forEach((p: any) =>
     add({ key: 'w' + p.id, href: '/dashboard/kanban', cor: p.clientes?.cor, titulo: nome(p) + ' · ' + p.titulo, quando: 'Esperando a cliente', area: 'Aprovação', grupo: 'wait' }))
-  ;(docs || []).forEach((d: any) => {
+  ;so(docs).forEach((d: any) => {
     const t = (d.clientes?.nome ? d.clientes.nome + ' · ' : '') + d.titulo
     if (d.status_aprovacao === 'aguardando') add({ key: 'd' + d.id, href: '/dashboard/docs', cor: d.clientes?.cor, titulo: t, quando: dias(d.updated_at) + ' dia(s) esperando aprovação', area: 'Docs', grupo: 'wait' })
     if (d.status_aprovacao === 'reprovado') add({ key: 'dr' + d.id, href: '/dashboard/docs', cor: d.clientes?.cor, titulo: t, quando: 'Reprovado, precisa de ajuste', area: 'Docs', grupo: 'today' })
@@ -104,7 +106,7 @@ export default async function DashboardPage() {
   })
 
   // Dinheiro
-  ;(pagamentos || []).forEach((p: any) => {
+  ;so(pagamentos).forEach((p: any) => {
     const dd = differenceInDays(parseISO(p.vencimento), new Date())
     if (p.status !== 'atrasado' && dd > 5) return
     add({
@@ -135,7 +137,7 @@ export default async function DashboardPage() {
   })
 
   // Tarefas cadastradas (essas têm quadradinho)
-  ;(tarefasAbertas || []).forEach((t: any) => {
+  ;so(tarefasAbertas).forEach((t: any) => {
     const p = t.prazo ? String(t.prazo).slice(0, 10) : null
     const grupo: ItemLista['grupo'] = !p ? 'wait' : p < hoje ? 'late' : p === hoje ? 'today' : p <= daqui7 ? 'week' : 'wait'
     add({
@@ -146,7 +148,7 @@ export default async function DashboardPage() {
   })
 
   itens.sort((a, b) => ORDEM[a.grupo] - ORDEM[b.grupo])
-  const concluidas: ItemLista[] = (tarefasFeitas || []).map((t: any) => ({
+  const concluidas: ItemLista[] = so(tarefasFeitas).map((t: any) => ({
     key: 'tf' + t.id, tarefaId: t.id, cor: t.clientes?.cor, grupo: 'week' as const,
     titulo: (t.clientes?.nome ? t.clientes.nome + ' · ' : '') + t.titulo,
     quando: t.prazo ? formatDate(String(t.prazo).slice(0, 10), 'dd/MM') : 'Sem prazo', area: 'Tarefa',
@@ -163,7 +165,7 @@ export default async function DashboardPage() {
 
   // Calendário geral do mês
   const diasMes = eachDayOfInterval({ start: iniMes, end: fimMes })
-  const postsDoDia = (d: Date) => (postsMes || []).filter((p: any) => String(p.data_publicacao).slice(0, 10) === format(d, 'yyyy-MM-dd'))
+  const postsDoDia = (d: Date) => so(postsMes).filter((p: any) => String(p.data_publicacao).slice(0, 10) === format(d, 'yyyy-MM-dd'))
   const clientesLegenda = (clientes || [])
 
   const dinheiro: LinhaDinheiro[] = itens.filter(i => i.area === 'Dinheiro').map(i => ({
@@ -173,10 +175,12 @@ export default async function DashboardPage() {
   }))
   const curto = (n?: string) => !n ? 'BR MKT' : n.replace(/^Cl[ií]nica\s+/i, '').split(' ')[0]
   const corDe = (p: any) => p.clientes?.cor || '#5A1A2B'
+  const ABREV: Record<string, string> = { reels: 'Reel', carrossel: 'Car', feed: 'Est', stories: 'Sto', tiktok: 'Tik' }
   const TIPO: Record<string, string> = { reels: 'Reels', carrossel: 'Carrossel', feed: 'Estático', stories: 'Stories', tiktok: 'TikTok' }
-  const postsSemana = (d: Date) => (posts || []).filter((p: any) => String(p.data_publicacao).slice(0, 10) === format(d, 'yyyy-MM-dd') && !['publicado', 'postado'].includes(p.status_interno))
-  const tarefasSemana = (d: Date) => (tarefasAbertas || []).filter((t: any) => t.prazo && String(t.prazo).slice(0, 10) === format(d, 'yyyy-MM-dd'))
-  const docsEsperando = (docs || []).filter((d: any) => d.status_aprovacao === 'aguardando')
+  const postsSemana = (d: Date) => so(posts).filter((p: any) => String(p.data_publicacao).slice(0, 10) === format(d, 'yyyy-MM-dd') && !['publicado', 'postado'].includes(p.status_interno))
+  const tarefasSemana = (d: Date) => so(tarefasAbertas).filter((t: any) => t.prazo && String(t.prazo).slice(0, 10) === format(d, 'yyyy-MM-dd'))
+  const listaMes = so(postsMes).filter((p: any) => String(p.data_publicacao).slice(0, 7) === ym).sort((x: any, y: any) => String(x.data_publicacao).localeCompare(String(y.data_publicacao)))
+  const docsEsperando = so(docs).filter((d: any) => d.status_aprovacao === 'aguardando')
 
   const CSS = [
     '.hm{font-family:"Bricolage Grotesque",sans-serif;color:#2B1218}',
@@ -193,30 +197,32 @@ export default async function DashboardPage() {
     '.hm-chk{width:26px;height:26px;border-radius:8px;border:2px solid #B0546E;background:#fff;cursor:pointer;flex:none;padding:0;color:#2E5314;font-weight:700;font-size:14px;font-family:inherit}',
     '.hm-sec{border-radius:18px;overflow:hidden;background:#fff;border:1px solid #EADBBE;text-decoration:none;color:#2B1218;display:block}',
     '.hm-sec .lab{padding:14px 18px;font-size:15px;font-weight:500}',
+    '@media(max-width:640px){.hm-card{padding:18px}.hm-h2{font-size:28px}.hm-day{min-height:56px;padding:3px;font-size:11px}.hm-cellchip{font-size:9px!important;padding:1px 3px!important;white-space:normal!important;line-height:1.25!important}}',
   ].join('\n')
 
-  const cap1 = (s: string) => s.charAt(0).toUpperCase() + s.slice(1); const dataExtenso = cap1(formatDate(new Date().toISOString(), "EEEE, d 'de' MMMM"))
+  const cap1 = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+  const dataExtenso = cap1(formatDate(new Date().toISOString(), "EEEE, d 'de' MMMM"))
   const faixaSemana = formatDate(hojeD, 'd') + ' a ' + formatDate(addDays(hojeD, 6), "d 'de' MMMM")
 
   return (
     <div className="hm">
       <style>{CSS}</style>
 
-      <section className="px-5 lg:px-12 pt-10 pb-[72px]" style={{ background: '#5A1A2B', color: '#F1E6D2', borderRadius: '0 0 40px 40px' }}>
-        <p style={{ margin: '0 0 8px', fontSize: 15, color: '#F5CFC8' }}>{dataExtenso}</p>
-        <h1 className="font-display text-[48px] lg:text-[76px]" style={{ margin: '0 0 28px', lineHeight: 1, fontWeight: 400 }}>
+      <section className="px-4 lg:px-12 pt-6 lg:pt-10 pb-[56px] lg:pb-[72px]" style={{ background: '#5A1A2B', color: '#F1E6D2', borderRadius: '0 0 40px 40px' }}>
+        <p style={{ margin: '0 0 8px', fontSize: 15, color: '#F5CFC8', textAlign: 'center' }}>{dataExtenso}</p>
+        <h1 className="font-display text-[44px] lg:text-[76px] text-center" style={{ margin: '0 0 22px', lineHeight: 1, fontWeight: 400 }}>
           Oi, Brenda.<br /><span style={{ color: '#F5CFC8', fontStyle: 'italic' }}>Esse é o seu dia.</span>
         </h1>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+        <div className="grid grid-cols-4 gap-2 lg:gap-3.5 max-w-[720px] mx-auto">
           {[
             { n: nLate, t: 'atrasadas', st: { background: '#8A1F2E' } },
             { n: nToday, t: 'para hoje', st: { background: '#B0546E' } },
             { n: nWeek, t: 'nesta semana', st: { background: '#F5CFC8', color: '#5A1A2B' } },
             { n: concluidas.length, t: 'concluídas', st: { background: '#D4F25A', color: '#2B3A00' } },
           ].map(c => (
-            <div key={c.t} style={{ borderRadius: 18, padding: '18px 26px', minWidth: 150, ...c.st }}>
-              <div className="font-display" style={{ fontSize: 48, lineHeight: 1 }}>{c.n}</div>
-              <div style={{ fontSize: 14, marginTop: 4 }}>{c.t}</div>
+            <div key={c.t} className="rounded-[14px] lg:rounded-[18px] px-1.5 py-3 lg:px-[26px] lg:py-[18px] text-center" style={c.st}>
+              <div className="font-display text-[30px] lg:text-[48px]" style={{ lineHeight: 1 }}>{c.n}</div>
+              <div className="text-[11px] lg:text-sm" style={{ marginTop: 4 }}>{c.t}</div>
             </div>
           ))}
         </div>
@@ -235,7 +241,27 @@ export default async function DashboardPage() {
               <h2 className="hm-h2 font-display">Agenda da semana</h2>
               <Link href="/dashboard/minha-agenda" className="hm-chip lim" style={{ textDecoration: 'none' }}>Abrir agenda</Link>
             </div>
-            <p className="hm-sub">{faixaSemana} · reuniões, entregas e prazos.</p>
+            <p className="hm-sub">{faixaSemana} · reuniões, posts e prazos. Toque num item pra abrir.</p>
+            <div className="md:hidden">
+              {semana.map(d => {
+                const k = format(d, 'yyyy-MM-dd')
+                const ev = eventosDoDia(d), ps = postsSemana(d), ts = tarefasSemana(d)
+                const vazio = ev.length + ps.length + ts.length === 0
+                const cp = { whiteSpace: 'normal', textDecoration: 'none', display: 'block', marginBottom: 4, borderRadius: 10 } as const
+                return (
+                  <div key={k} style={{ display: 'flex', gap: 12, padding: '10px 8px', borderTop: '1px solid #E3D3B6', borderRadius: 10, background: k === hoje ? '#F5CFC8' : 'transparent' }}>
+                    <div style={{ width: 54, flex: 'none', fontSize: 13, color: '#6B4A52' }}>{DIAS[d.getDay()]} {format(d, 'd')}{k === hoje ? <div style={{ fontSize: 11, color: '#5A1A2B', fontWeight: 700 }}>hoje</div> : null}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {vazio && <span style={{ fontSize: 13, color: '#9a8088' }}>livre</span>}
+                      {ev.map((e: any) => <Link key={e.id} href="/dashboard/minha-agenda" className="hm-chip lim" style={cp}>{e.titulo}</Link>)}
+                      {ps.map((p: any) => <Link key={p.id} href="/dashboard/calendario" className="hm-chip pnk" style={cp}>{curto(p.clientes?.nome)} · {TIPO[p.tipo] || 'post'} · {p.titulo}</Link>)}
+                      {ts.map((t: any) => <Link key={t.id} href="/dashboard/tarefas" className="hm-chip gry" style={cp}>{t.titulo}</Link>)}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="hidden md:block">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 6 }}>
               {semana.map(d => <div key={'h' + d.toISOString()} className="hm-dh">{DIAS[d.getDay()]} {format(d, 'd')}</div>)}
               {semana.map(d => {
@@ -255,6 +281,7 @@ export default async function DashboardPage() {
                   </div>
                 )
               })}
+            </div>
             </div>
           </div>
         </div>
@@ -282,9 +309,10 @@ export default async function DashboardPage() {
                     const pub = ['publicado', 'postado'].includes(p.status_interno)
                     return (
                       <Link key={p.id} href="/dashboard/calendario" title={p.titulo}
-                        className="hm-chip"
+                        className="hm-chip hm-cellchip"
                         style={{ fontSize: 11, padding: '1px 6px', marginTop: 3, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: 'none', background: corDe(p), color: '#fff', opacity: pub ? 0.6 : 1 }}>
-                        {curto(p.clientes?.nome)} · {pub ? 'publicado' : (TIPO[p.tipo] || p.tipo || 'post')}
+                        <span className="hidden sm:inline">{curto(p.clientes?.nome)} · {pub ? 'publicado' : (TIPO[p.tipo] || p.tipo || 'post')}</span>
+                        <span className="sm:hidden">{curto(p.clientes?.nome).slice(0, 4)} {pub ? '✓' : (ABREV[p.tipo] || 'post')}</span>
                       </Link>
                     )
                   })}
@@ -292,6 +320,22 @@ export default async function DashboardPage() {
               )
             })}
           </div>
+          <details style={{ marginTop: 14 }}>
+            <summary className="hm-tabbtn" style={{ display: 'inline-block', fontSize: 13, color: '#5A1A2B' }}>Ver lista do mês ({listaMes.length})</summary>
+            {listaMes.length === 0 && <p className="hm-sub" style={{ margin: '12px 0 0' }}>Nada marcado neste mês.</p>}
+            {listaMes.map((p: any) => (
+              <div key={p.id} className="hm-row">
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 99, background: corDe(p), flex: 'none' }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 500 }}>{p.titulo}</div>
+                    <div style={{ fontSize: 13, color: '#6B4A52' }}>{formatDate(String(p.data_publicacao).slice(0, 10), 'dd/MM')} · {curto(p.clientes?.nome)} · {TIPO[p.tipo] || p.tipo || 'post'}</div>
+                  </div>
+                </div>
+                <span className={'hm-chip ' + (['publicado', 'postado'].includes(p.status_interno) ? 'grn' : 'gry')}>{['publicado', 'postado'].includes(p.status_interno) ? 'Publicado' : 'A postar'}</span>
+              </div>
+            ))}
+          </details>
         </div>
 
         <div className="hm-card" id="inbox" style={{ marginTop: 24, background: '#F5CFC8' }}>
@@ -301,14 +345,14 @@ export default async function DashboardPage() {
             <Link href="/dashboard/minha-agenda" style={{ background: '#FBF6EC', borderRadius: 16, padding: 20, textDecoration: 'none', color: '#2B1218', display: 'block' }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Pedidos novos</div>
               <div style={{ fontSize: 14, color: '#6B4A52' }}>Reunião ou captação pedida pela cliente. Você aprova ou recusa.</div>
-              <span className={'hm-chip ' + ((pedidos || []).length ? 'yel' : 'gry')} style={{ marginTop: 12 }}>{(pedidos || []).length ? (pedidos || []).length + ' novo(s)' : 'nenhum agora'}</span>
-              {(pedidos || []).slice(0, 3).map((p: any) => <div key={p.id} style={{ fontSize: 13, color: '#6B4A52', marginTop: 6 }}>{curto(p.clientes?.nome)} · {p.titulo}</div>)}
+              <span className={'hm-chip ' + (so(pedidos).length ? 'yel' : 'gry')} style={{ marginTop: 12 }}>{so(pedidos).length ? so(pedidos).length + ' novo(s)' : 'nenhum agora'}</span>
+              {so(pedidos).slice(0, 3).map((p: any) => <div key={p.id} style={{ fontSize: 13, color: '#6B4A52', marginTop: 6 }}>{curto(p.clientes?.nome)} · {p.titulo}</div>)}
             </Link>
             <Link href="/dashboard/duvidas" style={{ background: '#FBF6EC', borderRadius: 16, padding: 20, textDecoration: 'none', color: '#2B1218', display: 'block' }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Dúvidas abertas</div>
               <div style={{ fontSize: 14, color: '#6B4A52' }}>A cliente pergunta pelo formulário. Você responde e marca como respondida.</div>
-              <span className={'hm-chip ' + ((duvidas || []).length ? 'yel' : 'gry')} style={{ marginTop: 12 }}>{(duvidas || []).length ? (duvidas || []).length + ' aberta(s)' : 'nenhuma agora'}</span>
-              {(duvidas || []).slice(0, 3).map((d: any) => <div key={d.id} style={{ fontSize: 13, color: '#6B4A52', marginTop: 6 }}>{curto(d.clientes?.nome)} · {d.pergunta}</div>)}
+              <span className={'hm-chip ' + (so(duvidas).length ? 'yel' : 'gry')} style={{ marginTop: 12 }}>{so(duvidas).length ? so(duvidas).length + ' aberta(s)' : 'nenhuma agora'}</span>
+              {so(duvidas).slice(0, 3).map((d: any) => <div key={d.id} style={{ fontSize: 13, color: '#6B4A52', marginTop: 6 }}>{curto(d.clientes?.nome)} · {d.pergunta}</div>)}
             </Link>
             <Link href="/dashboard/docs" style={{ background: '#FBF6EC', borderRadius: 16, padding: 20, textDecoration: 'none', color: '#2B1218', display: 'block' }}>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Documentos aguardando aprovação</div>
