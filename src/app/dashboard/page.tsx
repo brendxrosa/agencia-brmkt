@@ -6,6 +6,7 @@ import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
 } from 'date-fns'
 import ListaTarefas, { type ItemLista } from '@/components/home/ListaTarefas'
+import AbasHome, { type LinhaDinheiro } from '@/components/home/AbasHome'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,7 +66,7 @@ export default async function DashboardPage() {
     supabase.from('rotinas_mensais').select('rotina, mes, valor, nf_gerada, nf_enviada, pago'),
     supabase.from('tarefas').select('id, titulo, prazo, status, clientes(nome, cor)').neq('status', 'concluida'),
     supabase.from('tarefas').select('id, titulo, prazo, status, clientes(nome, cor)').eq('status', 'concluida').order('created_at', { ascending: false }).limit(20),
-    supabase.from('posts').select('id, titulo, data_publicacao, status_interno, clientes(nome, cor)')
+    supabase.from('posts').select('id, titulo, tipo, data_publicacao, status_interno, clientes(nome, cor)')
       .gte('data_publicacao', iniMesISO).lte('data_publicacao', fimMesISO + 'T23:59:59'),
     supabase.from('duvidas_clientes').select('id, pergunta, clientes(nome, cor)').eq('respondida', false),
     supabase.from('eventos').select('id, titulo, data_inicio, tipo, clientes(nome, cor)').eq('status', 'pendente'),
@@ -165,157 +166,162 @@ export default async function DashboardPage() {
   const postsDoDia = (d: Date) => (postsMes || []).filter((p: any) => String(p.data_publicacao).slice(0, 10) === format(d, 'yyyy-MM-dd'))
   const clientesLegenda = (clientes || [])
 
-  const hora = Number(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', hour12: false, timeZone: 'America/Bahia' }))
-  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
-
-  const dinheiro = itens.filter(i => i.area === 'Dinheiro').slice(0, 5)
+  const dinheiro: LinhaDinheiro[] = itens.filter(i => i.area === 'Dinheiro').map(i => ({
+    key: i.key, titulo: i.titulo, quando: i.quando,
+    chip: i.grupo === 'late' ? 'Atrasado' : i.grupo === 'wait' ? 'Aguardando' : 'Pendente',
+    cls: i.grupo === 'late' ? 'red' : i.grupo === 'wait' ? 'gry' : 'yel',
+  }))
+  const curto = (n?: string) => !n ? 'BR MKT' : n.replace(/^Cl[ií]nica\s+/i, '').split(' ')[0]
+  const corDe = (p: any) => p.clientes?.cor || '#5A1A2B'
+  const TIPO: Record<string, string> = { reels: 'Reels', carrossel: 'Carrossel', feed: 'Estático', stories: 'Stories', tiktok: 'TikTok' }
+  const postsSemana = (d: Date) => (posts || []).filter((p: any) => String(p.data_publicacao).slice(0, 10) === format(d, 'yyyy-MM-dd') && !['publicado', 'postado'].includes(p.status_interno))
+  const tarefasSemana = (d: Date) => (tarefasAbertas || []).filter((t: any) => t.prazo && String(t.prazo).slice(0, 10) === format(d, 'yyyy-MM-dd'))
   const docsEsperando = (docs || []).filter((d: any) => d.status_aprovacao === 'aguardando')
 
+  const CSS = [
+    '.hm{font-family:"Bricolage Grotesque",sans-serif;color:#2B1218}',
+    '.hm a{color:#5A1A2B}.hm a:hover{color:#B0546E}',
+    '.hm-card{background:#FBF6EC;border-radius:22px;padding:28px;box-sizing:border-box}',
+    '.hm-chip{display:inline-block;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:500;line-height:1.4;white-space:nowrap}',
+    '.hm-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid #E3D3B6}',
+    '.hm-h2{font-size:34px;line-height:1.1;margin:0 0 4px;color:#5A1A2B;font-weight:400}',
+    '.hm-sub{margin:0 0 18px;font-size:14px;color:#6B4A52}',
+    '.hm .red{background:#F8D7D3;color:#8A1F1F}.hm .yel{background:#F6E7A8;color:#5E4B00}.hm .grn{background:#D7E9C5;color:#2E5314}.hm .pnk{background:#F5CFC8;color:#5A1A2B}.hm .lim{background:#D4F25A;color:#2B3A00}.hm .gry{background:#E9DCC4;color:#4A3A3F}.hm .vin{background:#5A1A2B;color:#F1E6D2}.hm .ros{background:#B0546E;color:#fff}',
+    '.hm-day{min-height:96px;padding:6px;border-radius:10px;background:#F1E6D2;font-size:12px;box-sizing:border-box;min-width:0}',
+    '.hm-dh{font-size:12px;color:#6B4A52;text-align:center}',
+    '.hm-tabbtn{padding:10px 22px;border-radius:999px;font-size:15px;font-weight:500;border:1px solid #D9C7A6;font-family:inherit;cursor:pointer;min-height:44px}',
+    '.hm-chk{width:26px;height:26px;border-radius:8px;border:2px solid #B0546E;background:#fff;cursor:pointer;flex:none;padding:0;color:#2E5314;font-weight:700;font-size:14px;font-family:inherit}',
+    '.hm-sec{border-radius:18px;overflow:hidden;background:#fff;border:1px solid #EADBBE;text-decoration:none;color:#2B1218;display:block}',
+    '.hm-sec .lab{padding:14px 18px;font-size:15px;font-weight:500}',
+  ].join('\n')
+
+  const dataExtenso = formatDate(new Date().toISOString(), "EEEE, d 'de' MMMM")
+  const faixaSemana = formatDate(hojeD, 'd') + ' a ' + formatDate(addDays(hojeD, 6), "d 'de' MMMM")
+
   return (
-    <div className="space-y-6">
-      {/* Capa */}
-      <section className="bg-vinho text-offwhite rounded-[32px] px-6 lg:px-10 pt-8 pb-10">
-        <p className="text-rosa-pale text-sm capitalize">{formatDate(new Date().toISOString(), "EEEE, dd 'de' MMMM")}</p>
-        <h1 className="font-display text-5xl lg:text-7xl leading-none mt-2">
-          {saudacao}, Brenda.<br /><span className="italic text-rosa-pale">Esse é o seu dia.</span>
+    <div className="hm">
+      <style>{CSS}</style>
+
+      <section className="px-5 lg:px-12 pt-10 pb-[72px]" style={{ background: '#5A1A2B', color: '#F1E6D2', borderRadius: '0 0 40px 40px' }}>
+        <p className="capitalize" style={{ margin: '0 0 8px', fontSize: 15, color: '#F5CFC8' }}>{dataExtenso}</p>
+        <h1 className="font-display text-[48px] lg:text-[76px]" style={{ margin: '0 0 28px', lineHeight: 1, fontWeight: 400 }}>
+          Oi, Brenda.<br /><span style={{ color: '#F5CFC8', fontStyle: 'italic' }}>Esse é o seu dia.</span>
         </h1>
-        <div className="flex flex-wrap gap-3 mt-7">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
           {[
-            { n: nLate, t: 'atrasadas', cls: 'bg-[#8A1F2E] text-white' },
-            { n: nToday, t: 'para hoje', cls: 'bg-rosa text-white' },
-            { n: nWeek, t: 'nesta semana', cls: 'bg-rosa-pale text-vinho' },
-            { n: concluidas.length, t: 'concluídas', cls: 'bg-lima text-tinta' },
+            { n: nLate, t: 'atrasadas', st: { background: '#8A1F2E' } },
+            { n: nToday, t: 'para hoje', st: { background: '#B0546E' } },
+            { n: nWeek, t: 'nesta semana', st: { background: '#F5CFC8', color: '#5A1A2B' } },
+            { n: concluidas.length, t: 'concluídas', st: { background: '#D4F25A', color: '#2B3A00' } },
           ].map(c => (
-            <div key={c.t} className={'rounded-2xl px-6 py-4 min-w-[140px] ' + c.cls}>
-              <div className="font-display text-5xl leading-none">{c.n}</div>
-              <div className="text-sm mt-1">{c.t}</div>
+            <div key={c.t} style={{ borderRadius: 18, padding: '18px 26px', minWidth: 150, ...c.st }}>
+              <div className="font-display" style={{ fontSize: 48, lineHeight: 1 }}>{c.n}</div>
+              <div style={{ fontSize: 14, marginTop: 4 }}>{c.t}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Tarefas + Agenda */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <section className="bg-papel rounded-3xl p-6 lg:p-7">
-          <h2 className="font-display text-3xl text-vinho">O que tem que fazer</h2>
-          <p className="text-sm text-gray-500 mb-4">Posts, tarefas, prazos e dinheiro numa lista só. O quadradinho marca como feito.</p>
-          <ListaTarefas itens={itens} concluidas={concluidas} />
-          <Link href="/dashboard/tarefas" className="inline-block mt-4 text-sm text-rosa font-medium hover:underline">+ Nova tarefa</Link>
-        </section>
+      <div className="px-5 lg:px-12" style={{ marginTop: -36 }}>
+        <div id="tarefas" style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+          <div className="hm-card" style={{ flex: '1 1 480px', minWidth: 0 }}>
+            <h2 className="hm-h2 font-display">O que tem que fazer</h2>
+            <p className="hm-sub">Tarefas, posts, prazos e o que falta produzir, numa lista só. Clique no quadradinho pra marcar como feito.</p>
+            <ListaTarefas itens={itens} concluidas={concluidas} />
+          </div>
 
-        <section className="bg-papel rounded-3xl p-6 lg:p-7">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-display text-3xl text-vinho">Agenda da semana</h2>
-              <p className="text-sm text-gray-500 mb-4">Próximos 7 dias: reuniões, captações e entregas.</p>
+          <div className="hm-card" style={{ flex: '1 1 480px', minWidth: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <h2 className="hm-h2 font-display">Agenda da semana</h2>
+              <Link href="/dashboard/minha-agenda" className="hm-chip lim" style={{ textDecoration: 'none' }}>Abrir agenda</Link>
             </div>
-            <Link href="/dashboard/minha-agenda" className="text-xs bg-lima text-tinta rounded-full px-3 py-1.5 font-medium whitespace-nowrap">Abrir agenda</Link>
+            <p className="hm-sub">{faixaSemana} · reuniões, entregas e prazos.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 6 }}>
+              {semana.map(d => <div key={'h' + d.toISOString()} className="hm-dh">{DIAS[d.getDay()]} {format(d, 'd')}</div>)}
+              {semana.map(d => {
+                const hojeCel = format(d, 'yyyy-MM-dd') === hoje
+                const chip = { fontSize: 11, padding: '1px 6px', marginBottom: 3, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' } as const
+                return (
+                  <div key={d.toISOString()} className="hm-day" style={{ minHeight: 220, ...(hojeCel ? { background: '#F5CFC8' } : {}) }}>
+                    {eventosDoDia(d).map((e: any) => (
+                      <div key={e.id} className="hm-chip lim" style={chip}>{e.titulo}</div>
+                    ))}
+                    {postsSemana(d).map((p: any) => (
+                      <div key={p.id} className="hm-chip pnk" style={chip}>Post {curto(p.clientes?.nome)}</div>
+                    ))}
+                    {tarefasSemana(d).map((t: any) => (
+                      <div key={t.id} className="hm-chip gry" style={chip}>{t.titulo}</div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {semana.map(d => (
-              <div key={d.toISOString()} className="min-w-0">
-                <p className="text-[11px] text-gray-500 text-center mb-1">{DIAS[d.getDay()]} {format(d, 'dd')}</p>
-                <div className={'rounded-xl p-1.5 min-h-[180px] space-y-1 ' + (format(d, 'yyyy-MM-dd') === hoje ? 'bg-rosa-pale' : 'bg-offwhite')}>
-                  {eventosDoDia(d).map((e: any) => (
-                    <Link key={e.id} href="/dashboard/minha-agenda"
-                      className="block text-[11px] leading-tight rounded-lg px-1.5 py-1 bg-white text-vinho truncate">{e.titulo}</Link>
-                  ))}
+        </div>
+
+        <div className="hm-card" id="conteudo" style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <h2 className="hm-h2 font-display">Meu conteúdo · calendário geral</h2>
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <span className="hm-chip vin">BR MKT</span>
+              {clientesLegenda.map((c: any) => (
+                <span key={c.id} className="hm-chip" style={{ background: c.cor || '#B0546E', color: '#fff' }}>{curto(c.nome)}</span>
+              ))}
+            </span>
+          </div>
+          <p className="hm-sub capitalize">{formatDate(hojeD, "MMMM 'de' yyyy")} · tudo que vai ser postado, da Brenda Rosa Marketing e dos clientes.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 6 }}>
+            {DIAS.map(d => <div key={d} className="hm-dh">{d}</div>)}
+            {diasMes.map(d => {
+              const k = format(d, 'yyyy-MM-dd')
+              const fora = d.getMonth() !== hojeD.getMonth()
+              return (
+                <div key={k} className="hm-day" style={{ ...(k === hoje ? { background: '#F5CFC8' } : {}), ...(fora ? { opacity: 0.45 } : {}) }}>
+                  {fora ? '' : format(d, 'd')}
+                  {postsDoDia(d).map((p: any) => {
+                    const pub = ['publicado', 'postado'].includes(p.status_interno)
+                    return (
+                      <Link key={p.id} href="/dashboard/calendario" title={p.titulo}
+                        className="hm-chip"
+                        style={{ fontSize: 11, padding: '1px 6px', marginTop: 3, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: 'none', background: corDe(p), color: '#fff', opacity: pub ? 0.6 : 1 }}>
+                        {curto(p.clientes?.nome)} · {pub ? 'publicado' : (TIPO[p.tipo] || p.tipo || 'post')}
+                      </Link>
+                    )
+                  })}
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Calendário geral */}
-      <section className="bg-papel rounded-3xl p-6 lg:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-3xl text-vinho">Calendário de conteúdo</h2>
-            <p className="text-sm text-gray-500 mb-4 capitalize">{formatDate(hojeD, 'MMMM yyyy')} · tudo que vai ser postado, cada cliente na sua cor.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {clientesLegenda.map((c: any) => (
-              <span key={c.id} className="text-xs rounded-full px-3 py-1 text-white" style={{ backgroundColor: c.cor || '#B0546E' }}>{c.nome}</span>
-            ))}
+              )
+            })}
           </div>
         </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {DIAS.map(d => <div key={d} className="text-[11px] text-gray-500 text-center">{d}</div>)}
-          {diasMes.map(d => {
-            const k = format(d, 'yyyy-MM-dd')
-            const fora = d.getMonth() !== hojeD.getMonth()
-            return (
-              <div key={k} className={'rounded-xl p-1.5 min-h-[96px] ' + (k === hoje ? 'bg-rosa-pale' : fora ? 'bg-offwhite/50 opacity-60' : 'bg-offwhite')}>
-                <p className="text-xs text-gray-600">{format(d, 'd')}</p>
-                <div className="space-y-1 mt-1">
-                  {postsDoDia(d).map((p: any) => (
-                    <Link key={p.id} href="/dashboard/calendario"
-                      className={'block text-[11px] leading-tight rounded-md px-1.5 py-1 text-white truncate ' + (p.status_interno === 'publicado' ? 'opacity-60' : '')}
-                      style={{ backgroundColor: p.clientes?.cor || '#B0546E' }}
-                      title={(p.clientes?.nome || '') + ' · ' + p.titulo}>
-                      {p.titulo}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <p className="text-xs text-gray-400 mt-3">Posts já publicados ficam no calendário com a cor mais clara. Clique pra abrir.</p>
-      </section>
 
-      {/* Caixa de entrada */}
-      <section className="bg-rosa-pale rounded-3xl p-6 lg:p-7">
-        <h2 className="font-display text-3xl text-vinho">Caixa de entrada</h2>
-        <p className="text-sm text-vinho/70 mb-4">O que os clientes mandaram e está esperando você.</p>
-        <div className="grid md:grid-cols-3 gap-4">
-          <Link href="/dashboard/minha-agenda" className="bg-papel rounded-2xl p-5 block hover:shadow-card-hover transition-all">
-            <p className="font-bold text-tinta">Pedidos de reunião e captação</p>
-            <p className="text-sm text-gray-500 mt-1">Pedidos que as clientes fizeram pelo portal. Você aprova ou recusa.</p>
-            <span className="inline-block mt-3 text-xs rounded-full px-3 py-1 bg-creme">{(pedidos || []).length === 0 ? 'nenhum agora' : (pedidos || []).length + ' novo(s)'}</span>
-            {(pedidos || []).slice(0, 3).map((p: any) => <p key={p.id} className="text-xs text-gray-600 mt-2 truncate">{p.clientes?.nome} · {p.titulo}</p>)}
-          </Link>
-          <Link href="/dashboard/duvidas" className="bg-papel rounded-2xl p-5 block hover:shadow-card-hover transition-all">
-            <p className="font-bold text-tinta">Dúvidas abertas</p>
-            <p className="text-sm text-gray-500 mt-1">Perguntas das clientes esperando resposta.</p>
-            <span className="inline-block mt-3 text-xs rounded-full px-3 py-1 bg-creme">{(duvidas || []).length === 0 ? 'nenhuma agora' : (duvidas || []).length + ' aberta(s)'}</span>
-            {(duvidas || []).slice(0, 3).map((d: any) => <p key={d.id} className="text-xs text-gray-600 mt-2 truncate">{d.clientes?.nome} · {d.pergunta}</p>)}
-          </Link>
-          <Link href="/dashboard/docs" className="bg-papel rounded-2xl p-5 block hover:shadow-card-hover transition-all">
-            <p className="font-bold text-tinta">Documentos aguardando aprovação</p>
-            <p className="text-sm text-gray-500 mt-1">Calendários e planejamentos enviados que a cliente ainda não aprovou.</p>
-            <span className="inline-block mt-3 text-xs rounded-full px-3 py-1 bg-yellow-100 text-yellow-800">{docsEsperando.length === 0 ? 'nenhum agora' : docsEsperando.length + ' aguardando'}</span>
-            {docsEsperando.slice(0, 3).map((d: any) => <p key={d.id} className="text-xs text-gray-600 mt-2 truncate">{d.clientes?.nome} · {d.titulo}</p>)}
-          </Link>
-        </div>
-      </section>
-
-      {/* Dinheiro + atalhos */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <section className="bg-papel rounded-3xl p-6 lg:p-7">
-          <h2 className="font-display text-3xl text-vinho">Dinheiro</h2>
-          <p className="text-sm text-gray-500 mb-3">O que vence ou está atrasado, na ordem.</p>
-          {dinheiro.length === 0 && <p className="text-sm text-gray-500">Nada vencendo nos próximos dias.</p>}
-          {dinheiro.map(i => (
-            <Link key={i.key} href="/dashboard/financeiro" className="flex items-center justify-between gap-3 py-3 border-t border-creme first:border-t-0">
-              <div className="min-w-0"><p className="font-medium text-tinta truncate">{i.titulo}</p><p className="text-xs text-gray-500">{i.quando}</p></div>
-              <span className={'text-xs rounded-full px-3 py-1 flex-shrink-0 ' + (i.grupo === 'late' ? 'bg-red-100 text-red-800' : 'bg-creme text-tinta')}>{i.grupo === 'late' ? 'Atrasado' : 'A vencer'}</span>
+        <div className="hm-card" id="inbox" style={{ marginTop: 24, background: '#F5CFC8' }}>
+          <h2 className="hm-h2 font-display">Caixa de entrada</h2>
+          <p className="hm-sub" style={{ color: '#5A1A2B' }}>O que os clientes mandaram e está esperando você.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
+            <Link href="/dashboard/minha-agenda" style={{ background: '#FBF6EC', borderRadius: 16, padding: 20, textDecoration: 'none', color: '#2B1218', display: 'block' }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Pedidos novos</div>
+              <div style={{ fontSize: 14, color: '#6B4A52' }}>Reunião ou captação pedida pela cliente. Você aprova ou recusa.</div>
+              <span className={'hm-chip ' + ((pedidos || []).length ? 'yel' : 'gry')} style={{ marginTop: 12 }}>{(pedidos || []).length ? (pedidos || []).length + ' novo(s)' : 'nenhum agora'}</span>
+              {(pedidos || []).slice(0, 3).map((p: any) => <div key={p.id} style={{ fontSize: 13, color: '#6B4A52', marginTop: 6 }}>{curto(p.clientes?.nome)} · {p.titulo}</div>)}
             </Link>
-          ))}
-          <Link href="/dashboard/financeiro" className="inline-block mt-3 text-sm text-rosa font-medium hover:underline">Abrir financeiro completo</Link>
-        </section>
-
-        <section className="bg-papel rounded-3xl p-6 lg:p-7">
-          <h2 className="font-display text-3xl text-vinho">Atalhos</h2>
-          <p className="text-sm text-gray-500 mb-3">Estratégia, modelos e o resto da gestão.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Link href="/dashboard/docs" className="rounded-2xl p-4 bg-vinho text-offwhite font-display text-2xl">Estratégia BR MKT</Link>
-            <Link href="/dashboard/docs" className="rounded-2xl p-4 bg-rosa text-white font-display text-2xl">Prompts e modelos</Link>
-            <Link href="/dashboard/briefings" className="rounded-2xl p-4 bg-rosa-pale text-vinho font-display text-2xl">Briefings</Link>
-            <Link href="/dashboard/relatorios" className="rounded-2xl p-4 bg-lima text-tinta font-display text-2xl">Relatórios</Link>
+            <Link href="/dashboard/duvidas" style={{ background: '#FBF6EC', borderRadius: 16, padding: 20, textDecoration: 'none', color: '#2B1218', display: 'block' }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Dúvidas abertas</div>
+              <div style={{ fontSize: 14, color: '#6B4A52' }}>A cliente pergunta pelo formulário. Você responde e marca como respondida.</div>
+              <span className={'hm-chip ' + ((duvidas || []).length ? 'yel' : 'gry')} style={{ marginTop: 12 }}>{(duvidas || []).length ? (duvidas || []).length + ' aberta(s)' : 'nenhuma agora'}</span>
+              {(duvidas || []).slice(0, 3).map((d: any) => <div key={d.id} style={{ fontSize: 13, color: '#6B4A52', marginTop: 6 }}>{curto(d.clientes?.nome)} · {d.pergunta}</div>)}
+            </Link>
+            <Link href="/dashboard/docs" style={{ background: '#FBF6EC', borderRadius: 16, padding: 20, textDecoration: 'none', color: '#2B1218', display: 'block' }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Documentos aguardando aprovação</div>
+              <div style={{ fontSize: 14, color: '#6B4A52' }}>{docsEsperando[0] ? (docsEsperando[0] as any).titulo : 'Calendários e planejamentos enviados que a cliente ainda não aprovou.'}</div>
+              <span className={'hm-chip ' + (docsEsperando.length ? 'yel' : 'gry')} style={{ marginTop: 12 }}>{docsEsperando.length ? docsEsperando.length + ' aguardando' : 'nenhum agora'}</span>
+            </Link>
           </div>
-        </section>
+        </div>
+
+        <AbasHome
+          dinheiro={dinheiro}
+          alerta='Faltando 15 dias para o último post do ciclo, o calendário do próximo precisa estar pronto. O alerta aparece aqui e em "O que tem que fazer" sozinho.'
+        />
       </div>
     </div>
   )
