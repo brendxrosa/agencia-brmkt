@@ -9,8 +9,8 @@ import FeedPreview, { capaDoPost } from '@/components/FeedPreview'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, parseISO, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-const STATUS_LISTA = ['copy', 'aguardando_cliente', 'design', 'captacao', 'edicao', 'aprovacao_arte', 'aprovado', 'publicado']
-const PRECISA_ARTE = ['aguardando_cliente', 'aprovacao_arte', 'aprovado', 'publicado']
+const STATUS_LISTA = ['copy', 'aguardando_cliente', 'design', 'captacao', 'edicao', 'aprovacao_arte', 'aprovado', 'agendado', 'publicado']
+const PRECISA_ARTE = ['aguardando_cliente', 'aprovacao_arte', 'aprovado', 'agendado', 'publicado']
 
 function Modal({ open, onClose, children, largo }: { open: boolean; onClose: () => void; children: React.ReactNode; largo?: boolean }) {
   if (!open) return null
