@@ -22,10 +22,11 @@ const CHIP: Record<ItemLista['grupo'], { txt: string; cls: string }> = {
   wait: { txt: 'Em espera', cls: 'gry' },
 }
 
-export default function ListaTarefas({ itens, concluidas }: { itens: ItemLista[]; concluidas: ItemLista[] }) {
+export default function ListaTarefas({ itens, concluidas, limite = 6 }: { itens: ItemLista[]; concluidas: ItemLista[]; limite?: number }) {
   const supabase = createClient()
   const router = useRouter()
   const [verConcluidas, setVerConcluidas] = useState(false)
+  const [verTudo, setVerTudo] = useState(false)
   const [salvando, setSalvando] = useState<string | null>(null)
 
   async function marcar(id: string, feito: boolean) {
@@ -61,9 +62,15 @@ export default function ListaTarefas({ itens, concluidas }: { itens: ItemLista[]
   return (
     <div>
       {itens.length === 0 && <p className="hm-sub" style={{ margin: 0 }}>Nada pendente. Tudo em dia.</p>}
-      {itens.map(i => <Linha key={i.key} i={i} />)}
+      {(verTudo ? itens : itens.slice(0, limite)).map(i => <Linha key={i.key} i={i} />)}
 
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {itens.length > limite && (
+          <button className="hm-tabbtn" style={{ background: '#5A1A2B', color: '#F1E6D2', borderColor: '#5A1A2B', fontSize: 13 }}
+            onClick={() => setVerTudo(v => !v)}>
+            {verTudo ? 'Mostrar menos' : 'Ver tudo (' + itens.length + ')'}
+          </button>
+        )}
         <button className="hm-tabbtn" style={{ background: 'transparent', color: '#6B4A52', fontSize: 13 }}
           onClick={() => setVerConcluidas(v => !v)}>
           {verConcluidas ? 'Esconder concluídas' : 'Ver concluídas'} ({concluidas.length})
