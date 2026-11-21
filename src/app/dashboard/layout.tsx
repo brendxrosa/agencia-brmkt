@@ -1,13 +1,12 @@
 import TopNav from '@/components/layout/TopNav'
+import MainWrap from '@/components/layout/MainWrap'
 import ChatFlutuante from '@/components/layout/ChatFlutuante'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-offwhite">
+    <div className="min-h-screen bg-[#F1E6D2] text-[#2B1218]">
       <TopNav />
-      <main className="max-w-[1400px] w-full mx-auto p-4 lg:p-8 pb-24 animate-fade-in">
-        {children}
-      </main>
+      <MainWrap>{children}</MainWrap>
       <ChatFlutuante />
     </div>
   )
