@@ -195,7 +195,7 @@ export default async function DashboardPage() {
     '.hm-sec .lab{padding:14px 18px;font-size:15px;font-weight:500}',
   ].join('\n')
 
-  const dataExtenso = formatDate(new Date().toISOString(), "EEEE, d 'de' MMMM")
+  const cap1 = (s: string) => s.charAt(0).toUpperCase() + s.slice(1); const dataExtenso = cap1(formatDate(new Date().toISOString(), "EEEE, d 'de' MMMM"))
   const faixaSemana = formatDate(hojeD, 'd') + ' a ' + formatDate(addDays(hojeD, 6), "d 'de' MMMM")
 
   return (
@@ -203,7 +203,7 @@ export default async function DashboardPage() {
       <style>{CSS}</style>
 
       <section className="px-5 lg:px-12 pt-10 pb-[72px]" style={{ background: '#5A1A2B', color: '#F1E6D2', borderRadius: '0 0 40px 40px' }}>
-        <p className="capitalize" style={{ margin: '0 0 8px', fontSize: 15, color: '#F5CFC8' }}>{dataExtenso}</p>
+        <p style={{ margin: '0 0 8px', fontSize: 15, color: '#F5CFC8' }}>{dataExtenso}</p>
         <h1 className="font-display text-[48px] lg:text-[76px]" style={{ margin: '0 0 28px', lineHeight: 1, fontWeight: 400 }}>
           Oi, Brenda.<br /><span style={{ color: '#F5CFC8', fontStyle: 'italic' }}>Esse é o seu dia.</span>
         </h1>
@@ -269,7 +269,7 @@ export default async function DashboardPage() {
               ))}
             </span>
           </div>
-          <p className="hm-sub capitalize">{formatDate(hojeD, "MMMM 'de' yyyy")} · tudo que vai ser postado, da Brenda Rosa Marketing e dos clientes.</p>
+          <p className="hm-sub">{cap1(formatDate(hojeD, "MMMM 'de' yyyy"))} · tudo que vai ser postado, da Brenda Rosa Marketing e dos clientes.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(0,1fr))', gap: 6 }}>
             {DIAS.map(d => <div key={d} className="hm-dh">{d}</div>)}
             {diasMes.map(d => {
