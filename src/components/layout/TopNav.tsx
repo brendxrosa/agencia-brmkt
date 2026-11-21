@@ -4,39 +4,35 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
-import { ChevronDown, LogOut, Menu, X } from 'lucide-react'
 import NotificacoesSino from '@/components/layout/NotificacoesSino'
 
-type Link_ = { href: string; label: string; exact?: boolean }
-
-const LINKS: Link_[] = [
-  { href: '/dashboard', label: 'Hoje', exact: true },
-  { href: '/dashboard/tarefas', label: 'Tarefas' },
-  { href: '/dashboard/kanban', label: 'Conteúdo' },
+const MAIS = [
+  { href: '/dashboard/kanban', label: 'Kanban de conteúdo' },
   { href: '/dashboard/calendario', label: 'Calendário' },
   { href: '/dashboard/minha-agenda', label: 'Agenda' },
-  { href: '/dashboard/docs', label: 'Docs' },
-  { href: '/dashboard/financeiro', label: 'Dinheiro' },
+  { href: '/dashboard/tarefas', label: 'Tarefas' },
+  { href: '/dashboard/docs', label: 'Documentos' },
+  { href: '/dashboard/financeiro', label: 'Financeiro' },
   { href: '/dashboard/duvidas', label: 'Dúvidas' },
+  { href: '/dashboard/briefings', label: 'Briefings' },
+  { href: '/dashboard/relatorios', label: 'Relatórios' },
+  { href: '/dashboard/equipe', label: 'Equipe' },
 ]
 
 export default function TopNav() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-  const [clientes, setClientes] = useState<{ id: string; nome: string; cor?: string; status: string }[]>([])
-  const [abreClientes, setAbreClientes] = useState(false)
-  const [menuMobile, setMenuMobile] = useState(false)
+  const [clientes, setClientes] = useState<{ id: string; nome: string; status: string }[]>([])
+  const [abreCli, setAbreCli] = useState(false)
+  const [abreMais, setAbreMais] = useState(false)
 
   useEffect(() => {
-    supabase.from('clientes').select('id, nome, cor, status').order('nome').then(({ data }) => setClientes(data || []))
+    supabase.from('clientes').select('id, nome, status').order('nome').then(({ data }) => setClientes(data || []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { setAbreClientes(false); setMenuMobile(false) }, [pathname])
-
-  const ativo = (l: Link_) => (l.exact ? pathname === l.href : pathname === l.href || pathname.startsWith(l.href + '/'))
+  useEffect(() => { setAbreCli(false); setAbreMais(false) }, [pathname])
 
   async function sair() {
     await supabase.auth.signOut()
@@ -44,69 +40,47 @@ export default function TopNav() {
     router.refresh()
   }
 
-  const linkCls = (on: boolean) =>
-    cn('px-3 py-2 rounded-full text-sm font-medium transition-colors',
-      on ? 'bg-white/15 text-white' : 'text-offwhite/80 hover:text-white hover:bg-white/10')
+  const nav = 'text-[15px] text-[#F1E6D2] no-underline px-1 py-2.5 inline-block bg-transparent border-0 cursor-pointer font-body hover:text-white'
+  const dd = 'block px-3.5 py-3 rounded-[10px] no-underline text-[#2B1218] text-[15px] hover:bg-[#F5CFC8] hover:text-[#5A1A2B]'
+  const painel = 'absolute top-full left-0 bg-[#FBF6EC] rounded-[14px] p-2 min-w-[250px] shadow-[0_12px_32px_rgba(43,18,24,0.25)]'
 
   return (
-    <header className="sticky top-0 z-40 bg-vinho text-offwhite">
-      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-4">
-        <Link href="/dashboard" className="font-display text-3xl leading-none tracking-wide text-offwhite">BR MKT</Link>
+    <header className="bg-[#5A1A2B] text-[#F1E6D2] flex flex-wrap items-center justify-between gap-x-8 gap-y-3 px-5 lg:px-12 py-3.5 relative z-20">
+      <Link href="/dashboard" className="font-display text-[30px] tracking-[0.5px] text-[#F1E6D2]">BR MKT</Link>
 
-        <nav className="hidden lg:flex items-center gap-1">
-          {LINKS.map(l => (
-            <Link key={l.href} href={l.href} className={linkCls(ativo(l))}>{l.label}</Link>
-          ))}
-          <div className="relative">
-            <button onClick={() => setAbreClientes(v => !v)}
-              className={cn(linkCls(pathname.startsWith('/dashboard/clientes')), 'flex items-center gap-1')}>
-              Clientes <ChevronDown size={14} />
-            </button>
-            {abreClientes && (
-              <div className="absolute right-0 top-full mt-2 w-72 bg-papel text-tinta rounded-2xl shadow-modal p-2 z-50">
-                {clientes.filter(c => c.status === 'ativo').map(c => (
-                  <Link key={c.id} href={'/dashboard/clientes?id=' + c.id}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-rosa-pale">
-                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: c.cor || '#B0546E' }} />
-                    <span className="truncate">{c.nome}</span>
-                  </Link>
-                ))}
-                {clientes.filter(c => c.status !== 'ativo').map(c => (
-                  <Link key={c.id} href={'/dashboard/clientes?id=' + c.id}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-500 hover:bg-rosa-pale">
-                    <span className="w-3 h-3 rounded-full flex-shrink-0 bg-gray-300" />
-                    <span className="truncate">{c.nome} · {c.status}</span>
-                  </Link>
-                ))}
-                <Link href="/dashboard/clientes" className="block px-3 py-2.5 rounded-xl text-sm text-rosa font-medium hover:bg-rosa-pale">
-                  Todos os clientes e novo cliente
+      <nav className="flex flex-wrap items-center gap-x-7 gap-y-1">
+        <div className="relative">
+          <button className={nav} onClick={() => { setAbreCli(v => !v); setAbreMais(false) }}>Clientes ▾</button>
+          {abreCli && (
+            <div className={painel}>
+              {clientes.map(c => (
+                <Link key={c.id} href={'/dashboard/clientes?id=' + c.id} className={dd}>
+                  {c.nome}{c.status !== 'ativo' ? ' (' + c.status + ')' : ''}
                 </Link>
-              </div>
-            )}
-          </div>
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <NotificacoesSino />
-          <button onClick={sair} title="Sair" aria-label="Sair"
-            className="hidden lg:flex w-10 h-10 items-center justify-center rounded-full text-offwhite/70 hover:text-white hover:bg-white/10">
-            <LogOut size={18} />
-          </button>
-          <button onClick={() => setMenuMobile(v => !v)} aria-label="Menu"
-            className="lg:hidden w-10 h-10 flex items-center justify-center rounded-full bg-white/10">
-            {menuMobile ? <X size={20} /> : <Menu size={20} />}
-          </button>
+              ))}
+              <Link href="/dashboard/clientes" className={dd + ' !text-[#B0546E]'}>+ Novo cliente</Link>
+            </div>
+          )}
         </div>
+        <Link className={nav} href="/dashboard#tarefas">Tarefas e agenda</Link>
+        <Link className={nav} href="/dashboard#conteudo">Conteúdo geral</Link>
+        <Link className={nav} href="/dashboard#inbox">Caixa de entrada</Link>
+        <Link className={nav} href="/dashboard#abas">Estratégia · Dinheiro · Prompts</Link>
+        <div className="relative">
+          <button className={nav} onClick={() => { setAbreMais(v => !v); setAbreCli(false) }}>Mais ▾</button>
+          {abreMais && (
+            <div className={painel}>
+              {MAIS.map(l => <Link key={l.href} href={l.href} className={dd}>{l.label}</Link>)}
+            </div>
+          )}
+        </div>
+      </nav>
+
+      <div className="flex items-center gap-3">
+        <NotificacoesSino />
+        <Link href="/cliente" className="bg-[#D4F25A] text-[#2B3A00] no-underline font-bold text-sm px-5 py-3 rounded-full hover:text-[#2B3A00]">Ver portal da Ana</Link>
+        <button onClick={sair} className={nav}>Sair</button>
       </div>
-
-      {menuMobile && (
-        <div className="lg:hidden border-t border-white/10 px-4 py-3 space-y-1 bg-vinho-dark">
-          {[...LINKS, { href: '/dashboard/clientes', label: 'Clientes' }, { href: '/dashboard/equipe', label: 'Equipe' }].map(l => (
-            <Link key={l.href} href={l.href} className="block px-3 py-3 rounded-xl text-sm text-offwhite hover:bg-white/10">{l.label}</Link>
-          ))}
-          <button onClick={sair} className="block w-full text-left px-3 py-3 rounded-xl text-sm text-offwhite/70 hover:bg-white/10">Sair</button>
-        </div>
-      )}
     </header>
   )
 }
