@@ -1,11 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
-import { Check, ChevronRight } from 'lucide-react'
 
 export type ItemLista = {
   key: string
@@ -19,10 +16,10 @@ export type ItemLista = {
 }
 
 const CHIP: Record<ItemLista['grupo'], { txt: string; cls: string }> = {
-  late: { txt: 'Atrasada', cls: 'bg-red-100 text-red-800' },
-  today: { txt: 'Hoje', cls: 'bg-yellow-100 text-yellow-800' },
-  week: { txt: 'Esta semana', cls: 'bg-creme text-tinta' },
-  wait: { txt: 'Em espera', cls: 'bg-creme text-tinta' },
+  late: { txt: 'Atrasada', cls: 'red' },
+  today: { txt: 'Hoje', cls: 'yel' },
+  week: { txt: 'Esta semana', cls: 'gry' },
+  wait: { txt: 'Em espera', cls: 'gry' },
 }
 
 export default function ListaTarefas({ itens, concluidas }: { itens: ItemLista[]; concluidas: ItemLista[] }) {
@@ -38,57 +35,41 @@ export default function ListaTarefas({ itens, concluidas }: { itens: ItemLista[]
     router.refresh()
   }
 
+  function clicar(i: ItemLista, feito: boolean) {
+    if (i.tarefaId) marcar(i.tarefaId, !feito)
+    else if (i.href) router.push(i.href) // itens vindos de posts, docs e dinheiro se resolvem na página deles
+  }
+
   const Linha = ({ i, feito }: { i: ItemLista; feito?: boolean }) => (
-    <div className="flex items-center justify-between gap-4 py-3.5 border-t border-creme first:border-t-0">
-      <div className="flex items-center gap-3 min-w-0">
-        {i.tarefaId ? (
-          <button onClick={() => marcar(i.tarefaId!, !feito)} disabled={salvando === i.tarefaId}
-            aria-label={feito ? 'Reabrir tarefa' : 'Marcar como feito'}
-            className={cn('w-7 h-7 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all',
-              feito ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white border-rosa hover:bg-rosa-pale')}>
-            {feito && <Check size={16} />}
-          </button>
-        ) : (
-          <span className="w-7 h-7 flex-shrink-0 flex items-center justify-center">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: i.cor || '#B0546E' }} />
-          </span>
-        )}
-        <div className="min-w-0">
-          {i.href && !feito ? (
-            <Link href={i.href} className="font-medium text-tinta hover:text-rosa truncate block">{i.titulo}</Link>
-          ) : (
-            <p className={cn('font-medium truncate', feito ? 'line-through text-gray-400' : 'text-tinta')}>{i.titulo}</p>
-          )}
-          <p className="text-xs text-gray-500">{i.quando} · {i.area}</p>
+    <div className="hm-row">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+        <button className="hm-chk" disabled={salvando === i.tarefaId}
+          onClick={() => clicar(i, !!feito)}
+          aria-label={feito ? 'Reabrir tarefa' : i.tarefaId ? 'Marcar como feito' : 'Abrir para resolver'}
+          title={feito ? 'Reabrir' : i.tarefaId ? 'Marcar como feito' : 'Abrir para resolver'}>
+          {feito ? '✓' : ''}
+        </button>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 500, ...(feito ? { textDecoration: 'line-through', color: '#6B4A52' } : {}) }}>{i.titulo}</div>
+          <div style={{ fontSize: 13, color: '#6B4A52' }}>{i.quando} · {i.area}</div>
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className={cn('px-3 py-1 rounded-full text-xs font-medium', feito ? 'bg-emerald-100 text-emerald-800' : CHIP[i.grupo].cls)}>
-          {feito ? 'Feito' : CHIP[i.grupo].txt}
-        </span>
-        {i.href && !feito && <ChevronRight size={14} className="text-gray-300" />}
-      </div>
+      <span className={'hm-chip ' + (feito ? 'grn' : CHIP[i.grupo].cls)}>{feito ? 'Feito' : CHIP[i.grupo].txt}</span>
     </div>
   )
 
   return (
     <div>
-      {itens.length === 0 ? (
-        <p className="text-sm text-gray-500 py-4">Nada pendente. Tudo em dia.</p>
-      ) : itens.map(i => <Linha key={i.key} i={i} />)}
+      {itens.length === 0 && <p className="hm-sub" style={{ margin: 0 }}>Nada pendente. Tudo em dia.</p>}
+      {itens.map(i => <Linha key={i.key} i={i} />)}
 
-      <div className="mt-3">
-        <button onClick={() => setVerConcluidas(v => !v)}
-          className="text-xs text-gray-500 hover:text-vinho px-3 py-2 rounded-full border border-creme hover:bg-creme/60">
+      <div style={{ marginTop: 12 }}>
+        <button className="hm-tabbtn" style={{ background: 'transparent', color: '#6B4A52', fontSize: 13 }}
+          onClick={() => setVerConcluidas(v => !v)}>
           {verConcluidas ? 'Esconder concluídas' : 'Ver concluídas'} ({concluidas.length})
         </button>
       </div>
-      {verConcluidas && (
-        <div className="mt-2">
-          {concluidas.length === 0 && <p className="text-xs text-gray-400 py-2">Nenhuma concluída nos últimos 14 dias.</p>}
-          {concluidas.map(i => <Linha key={i.key} i={i} feito />)}
-        </div>
-      )}
+      {verConcluidas && concluidas.map(i => <Linha key={i.key} i={i} feito />)}
     </div>
   )
 }
