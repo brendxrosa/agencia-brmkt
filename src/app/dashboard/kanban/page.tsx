@@ -10,7 +10,7 @@ import { Plus, X, Calendar, Instagram, Video, Image, Layout, Paperclip, Edit2, S
 
 const COLUNAS = [
   'copy', 'aguardando_cliente', 'design', 'captacao',
-  'edicao', 'aprovacao_arte', 'aprovado', 'publicado', 'alteracao'
+  'edicao', 'aprovacao_arte', 'aprovado', 'agendado', 'publicado', 'alteracao'
 ] as const
 
 // Colunas especiais que não aparecem no board mas recebem posts
